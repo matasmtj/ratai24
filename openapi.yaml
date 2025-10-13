@@ -1,0 +1,521 @@
+openapi: 3.1.0
+info:
+  title: Car Lease API
+  version: 1.2.0
+  description: >
+    REST API for City → Car → Contract with JWT (roles: guest/user/admin).
+    Cars have rich specs; Contracts track mileage/fuel and support flexible updates, plus completion workflow.
+servers:
+  - url: http://localhost:3000
+tags:
+  - name: Auth
+  - name: Cities
+  - name: Cars
+  - name: Contracts
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  schemas:
+    Error:
+      type: object
+      properties:
+        error: { type: string }
+        details: { type: object }
+
+    # ---------- Enums ----------
+    FuelType:
+      type: string
+      enum: [PETROL, DIESEL, ELECTRIC, HYBRID_HEV, HYBRID_PHEV]
+    Gearbox:
+      type: string
+      enum: [MANUAL, AUTOMATIC]
+    BodyType:
+      type: string
+      enum: [SEDAN, HATCHBACK, SUV, WAGON, COUPE, CONVERTIBLE, VAN, PICKUP]
+    CarState:
+      type: string
+      enum: [AVAILABLE, LEASED, MAINTENANCE]
+    ContractState:
+      type: string
+      enum: [DRAFT, ACTIVE, COMPLETED, CANCELLED]
+
+    # ---------- City ----------
+    City:
+      type: object
+      properties:
+        id: { type: integer, example: 1 }
+        name: { type: string, example: Vilnius }
+        country: { type: string, example: LT }
+    CityCreate:
+      type: object
+      required: [name, country]
+      properties:
+        name: { type: string }
+        country: { type: string }
+
+    # ---------- Car ----------
+    Car:
+      type: object
+      properties:
+        id: { type: integer }
+        make: { type: string }
+        model: { type: string }
+        year: { type: integer }
+        pricePerDay: { type: number, format: float }
+        cityId: { type: integer }
+        seatCount: { type: integer, example: 5 }
+        fuelType: { $ref: '#/components/schemas/FuelType' }
+        powerKW: { type: integer, example: 97 }
+        engineCapacityL:
+          type: number
+          format: float
+          nullable: true
+          example: 1.6
+          description: null for ELECTRIC
+        bodyType: { $ref: '#/components/schemas/BodyType' }
+        gearbox: { $ref: '#/components/schemas/Gearbox' }
+        state: { $ref: '#/components/schemas/CarState' }
+        odometerKm: { type: integer, example: 60000 }
+    CarCreate:
+      type: object
+      required:
+        [make, model, year, pricePerDay, cityId, fuelType, powerKW, bodyType, gearbox]
+      properties:
+        make: { type: string }
+        model: { type: string }
+        year: { type: integer }
+        pricePerDay: { type: number, format: float }
+        cityId: { type: integer }
+        seatCount: { type: integer, default: 5 }
+        fuelType: { $ref: '#/components/schemas/FuelType' }
+        powerKW: { type: integer }
+        engineCapacityL:
+          type: number
+          format: float
+          nullable: true
+          description: null for ELECTRIC
+        bodyType: { $ref: '#/components/schemas/BodyType' }
+        gearbox: { $ref: '#/components/schemas/Gearbox' }
+        state: { $ref: '#/components/schemas/CarState' }
+        odometerKm: { type: integer, default: 0 }
+
+    # ---------- Contract ----------
+    Contract:
+      type: object
+      properties:
+        id: { type: integer }
+        userId: { type: integer }
+        carId: { type: integer }
+        startDate: { type: string, format: date-time }
+        endDate: { type: string, format: date-time }
+        totalPrice: { type: number, format: float }
+        state: { $ref: '#/components/schemas/ContractState' }
+        mileageStartKm: { type: integer }
+        mileageEndKm: { type: integer, nullable: true }
+        fuelLevelStartPct: { type: integer }
+        fuelLevelEndPct: { type: integer, nullable: true }
+        extraFees: { type: number, format: float, default: 0 }
+        notes: { type: string, nullable: true }
+    ContractCreate:
+      type: object
+      required: [carId, startDate, endDate, mileageStartKm, fuelLevelStartPct]
+      properties:
+        carId: { type: integer }
+        startDate: { type: string, format: date-time }
+        endDate: { type: string, format: date-time }
+        mileageStartKm: { type: integer }
+        fuelLevelStartPct: { type: integer }
+        notes: { type: string }
+    ContractUpdate:
+      type: object
+      properties:
+        carId: { type: integer }
+        startDate: { type: string, format: date-time }
+        endDate: { type: string, format: date-time }
+        state: { $ref: '#/components/schemas/ContractState' }
+        mileageEndKm: { type: integer }
+        fuelLevelEndPct: { type: integer }
+        notes: { type: string }
+      additionalProperties: false
+    ContractComplete:
+      type: object
+      required: [mileageEndKm, fuelLevelEndPct]
+      properties:
+        mileageEndKm: { type: integer, example: 60350 }
+        fuelLevelEndPct: { type: integer, minimum: 0, maximum: 100, example: 50 }
+        damageFee: { type: number, format: float, minimum: 0, example: 25 }
+        notes: { type: string, example: "Minor scratch on rear bumper" }
+      additionalProperties: false
+
+paths:
+  /health:
+    get:
+      tags: [Auth]
+      summary: Health check
+      responses:
+        '200': { description: OK }
+
+  # ---------- Auth ----------
+  /auth/register:
+    post:
+      tags: [Auth]
+      summary: Register a user
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, password]
+              properties:
+                email: { type: string, example: newuser@example.com }
+                password: { type: string, example: NewUser123! }
+                role: { type: string, enum: [USER, ADMIN] }
+      responses:
+        '201': { description: Created }
+        '400': { description: Bad request, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+
+  /auth/login:
+    post:
+      tags: [Auth]
+      summary: Login and receive tokens
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, password]
+              properties:
+                email: { type: string, example: user@example.com }
+                password: { type: string, example: User123! }
+      responses:
+        '200':
+          description: Tokens
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  accessToken: { type: string }
+                  refreshToken: { type: string }
+                  refreshExpiresAt: { type: string, format: date-time }
+                  role: { type: string, example: USER }
+        '401': { description: Invalid credentials, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+
+  /auth/refresh:
+    post:
+      tags: [Auth]
+      summary: Rotate refresh token and get new access token
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [refreshToken]
+              properties:
+                refreshToken: { type: string }
+      responses:
+        '200': { description: New tokens }
+        '401': { description: Invalid refresh token }
+
+  /auth/logout:
+    post:
+      tags: [Auth]
+      summary: Revoke a refresh token (logout)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [refreshToken]
+              properties:
+                refreshToken: { type: string }
+      responses:
+        '204': { description: No Content }
+
+  # ---------- Cities ----------
+  /cities:
+    get:
+      tags: [Cities]
+      summary: List cities
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { type: array, items: { $ref: '#/components/schemas/City' } }
+    post:
+      tags: [Cities]
+      summary: Create city (ADMIN)
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CityCreate' }
+            example: { name: Klaipeda, country: LT }
+      responses:
+        '201': { description: Created, content: { application/json: { schema: { $ref: '#/components/schemas/City' } } } }
+        '400': { description: Bad request }
+        '401': { description: Unauthorized }
+        '403': { description: Forbidden }
+
+  /cities/{id}:
+    get:
+      tags: [Cities]
+      summary: Get city by ID
+      parameters: [{ in: path, name: id, required: true, schema: { type: integer } }]
+      responses:
+        '200': { description: OK, content: { application/json: { schema: { $ref: '#/components/schemas/City' } } } }
+        '404': { description: Not found, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+    put:
+      tags: [Cities]
+      summary: Update city (ADMIN)
+      security: [{ bearerAuth: [] }]
+      parameters: [{ in: path, name: id, required: true, schema: { type: integer } }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CityCreate' }
+            example: { name: Klaipeda Updated, country: LT }
+      responses:
+        '200': { description: OK, content: { application/json: { schema: { $ref: '#/components/schemas/City' } } } }
+        '401': { description: Unauthorized }
+        '403': { description: Forbidden }
+        '404': { description: Not found }
+    delete:
+      tags: [Cities]
+      summary: Delete city (ADMIN)
+      security: [{ bearerAuth: [] }]
+      parameters: [{ in: path, name: id, required: true, schema: { type: integer } }]
+      responses:
+        '200': { description: Deleted city, content: { application/json: { schema: { $ref: '#/components/schemas/City' } } } }
+        '401': { description: Unauthorized }
+        '403': { description: Forbidden }
+        '404': { description: Not found }
+
+  /cities/{id}/cars:
+    get:
+      tags: [Cities]
+      summary: List cars in a city (hierarchical)
+      parameters: [{ in: path, name: id, required: true, schema: { type: integer } }]
+      responses:
+        '200': { description: OK }
+        '404': { description: City not found }
+
+  # ---------- Cars ----------
+  /cars:
+    get:
+      tags: [Cars]
+      summary: List cars (optional filter by cityId)
+      parameters:
+        - in: query
+          name: cityId
+          schema: { type: integer }
+      responses:
+        '200': { description: OK, content: { application/json: { schema: { type: array, items: { $ref: '#/components/schemas/Car' } } } } }
+    post:
+      tags: [Cars]
+      summary: Create car (ADMIN)
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CarCreate' }
+            example:
+              make: Tesla
+              model: Model 3
+              year: 2022
+              pricePerDay: 95
+              cityId: 1
+              seatCount: 5
+              fuelType: ELECTRIC
+              powerKW: 208
+              engineCapacityL: null
+              bodyType: SEDAN
+              gearbox: AUTOMATIC
+              state: AVAILABLE
+              odometerKm: 15000
+      responses:
+        '201': { description: Created, content: { application/json: { schema: { $ref: '#/components/schemas/Car' } } } }
+        '400': { description: Bad request }
+        '401': { description: Unauthorized }
+        '403': { description: Forbidden }
+
+  /cars/{id}:
+    get:
+      tags: [Cars]
+      summary: Get car by ID
+      parameters: [{ in: path, name: id, required: true, schema: { type: integer } }]
+      responses:
+        '200': { description: OK, content: { application/json: { schema: { $ref: '#/components/schemas/Car' } } } }
+        '404': { description: Not found, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+    put:
+      tags: [Cars]
+      summary: Update car (ADMIN)
+      security: [{ bearerAuth: [] }]
+      parameters: [{ in: path, name: id, required: true, schema: { type: integer } }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CarCreate' }
+            example:
+              make: Toyota
+              model: Corolla
+              year: 2021
+              pricePerDay: 40
+              cityId: 1
+              seatCount: 5
+              fuelType: PETROL
+              powerKW: 97
+              engineCapacityL: 1.6
+              bodyType: SEDAN
+              gearbox: MANUAL
+              state: AVAILABLE
+              odometerKm: 61000
+      responses:
+        '200': { description: OK, content: { application/json: { schema: { $ref: '#/components/schemas/Car' } } } }
+        '401': { description: Unauthorized }
+        '403': { description: Forbidden }
+        '404': { description: Not found }
+    delete:
+      tags: [Cars]
+      summary: Delete car (ADMIN)
+      security: [{ bearerAuth: [] }]
+      parameters: [{ in: path, name: id, required: true, schema: { type: integer } }]
+      responses:
+        '200': { description: Deleted car, content: { application/json: { schema: { $ref: '#/components/schemas/Car' } } } }
+        '401': { description: Unauthorized }
+        '403': { description: Forbidden }
+        '404': { description: Not found }
+
+  /cars/{id}/contracts:
+    get:
+      tags: [Cars]
+      summary: List contracts for a specific car (hierarchical)
+      parameters: [{ in: path, name: id, required: true, schema: { type: integer } }]
+      responses:
+        '200': { description: OK }
+        '404': { description: Car not found }
+
+  # ---------- Contracts ----------
+  /contracts:
+    get:
+      tags: [Contracts]
+      summary: List all contracts (ADMIN)
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200':
+          description: OK
+          content: { application/json: { schema: { type: array, items: { $ref: '#/components/schemas/Contract' } } } }
+        '401': { description: Unauthorized }
+        '403': { description: Forbidden }
+    post:
+      tags: [Contracts]
+      summary: Create a contract (USER/ADMIN)
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ContractCreate' }
+            example:
+              carId: 1
+              startDate: 2025-09-20T00:00:00Z
+              endDate: 2025-09-22T00:00:00Z
+              mileageStartKm: 60000
+              fuelLevelStartPct: 80
+              notes: "Airport pickup"
+      responses:
+        '201': { description: Created, content: { application/json: { schema: { $ref: '#/components/schemas/Contract' } } } }
+        '400': { description: Bad request }
+        '401': { description: Unauthorized }
+
+  /contracts/{id}:
+    get:
+      tags: [Contracts]
+      summary: Get contract by ID (owner or ADMIN)
+      security: [{ bearerAuth: [] }]
+      parameters: [{ in: path, name: id, required: true, schema: { type: integer } }]
+      responses:
+        '200': { description: OK, content: { application/json: { schema: { $ref: '#/components/schemas/Contract' } } } }
+        '401': { description: Unauthorized }
+        '403': { description: Forbidden }
+        '404': { description: Not found }
+    put:
+      tags: [Contracts]
+      summary: Update contract (owner or ADMIN). Change start/end dates, carId, state, end mileage/fuel, notes.
+      security: [{ bearerAuth: [] }]
+      parameters: [{ in: path, name: id, required: true, schema: { type: integer } }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ContractUpdate' }
+            example:
+              carId: 2
+              startDate: 2025-10-20T00:00:00Z
+              endDate: 2025-10-23T00:00:00Z
+              state: ACTIVE
+              mileageEndKm: 60350
+              fuelLevelEndPct: 50
+              notes: "Extended trip"
+      responses:
+        '200': { description: OK, content: { application/json: { schema: { $ref: '#/components/schemas/Contract' } } } }
+        '400': { description: Bad request }
+        '401': { description: Unauthorized }
+        '403': { description: Forbidden }
+        '404': { description: Not found }
+    delete:
+      tags: [Contracts]
+      summary: Delete contract (owner or ADMIN)
+      security: [{ bearerAuth: [] }]
+      parameters: [{ in: path, name: id, required: true, schema: { type: integer } }]
+      responses:
+        '200': { description: Deleted contract, content: { application/json: { schema: { $ref: '#/components/schemas/Contract' } } } }
+        '401': { description: Unauthorized }
+        '403': { description: Forbidden }
+        '404': { description: Not found }
+
+  /contracts/{id}/complete:
+    post:
+      tags: [Contracts]
+      summary: Complete a contract (owner or ADMIN). Records end mileage/fuel, computes extra fees, sets state to COMPLETED.
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ContractComplete' }
+            example:
+              mileageEndKm: 60350
+              fuelLevelEndPct: 50
+              damageFee: 0
+              notes: "Returned on time"
+      responses:
+        '200':
+          description: Completed contract
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Contract' }
+        '400': { description: Bad request }
+        '401': { description: Unauthorized }
+        '403': { description: Forbidden }
+        '404': { description: Not found }
+        '409': { description: Invalid state transition }

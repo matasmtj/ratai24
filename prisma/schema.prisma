@@ -1,0 +1,117 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model City {
+  id        Int      @id @default(autoincrement())
+  name      String   @unique
+  country   String
+  cars      Car[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Car {
+  id              Int        @id @default(autoincrement())
+  make            String
+  model           String
+  year            Int
+  pricePerDay     Float
+  cityId          Int
+  city            City       @relation(fields: [cityId], references: [id], onDelete: Cascade)
+  contracts       Contract[]
+  seatCount       Int        @default(5)
+  fuelType        FuelType
+  powerKW         Int // kilowatts
+  engineCapacityL Float? // litres; null for ELECTRIC
+  bodyType        BodyType
+  gearbox         Gearbox
+  state           CarState   @default(AVAILABLE)
+  odometerKm      Int        @default(0)
+
+  @@unique([make, model, year, cityId], name: "unique_car_in_city")
+  }
+
+model Contract {
+  id                Int           @id @default(autoincrement())
+  userId            Int
+  carId             Int
+  startDate         DateTime
+  endDate           DateTime
+  totalPrice        Float
+  car               Car           @relation(fields: [carId], references: [id], onDelete: Cascade)
+  state             ContractState @default(ACTIVE)
+  mileageStartKm    Int
+  mileageEndKm      Int?
+  fuelLevelStartPct Int
+  fuelLevelEndPct   Int?
+  extraFees         Float         @default(0)
+  notes             String?
+}
+
+model User {
+  id            Int            @id @default(autoincrement())
+  email         String         @unique
+  passwordHash  String
+  role          Role           @default(USER)
+  refreshTokens RefreshToken[]
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+}
+
+model RefreshToken {
+  id        Int      @id @default(autoincrement())
+  token     String   @unique
+  userId    Int
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+}
+
+enum Role {
+  GUEST
+  USER
+  ADMIN
+}
+
+enum FuelType {
+  PETROL
+  DIESEL
+  ELECTRIC
+  HYBRID_HEV
+  HYBRID_PHEV
+}
+
+enum Gearbox {
+  MANUAL
+  AUTOMATIC
+}
+
+enum BodyType {
+  SEDAN
+  HATCHBACK
+  SUV
+  WAGON
+  COUPE
+  CONVERTIBLE
+  VAN
+  PICKUP
+}
+
+enum CarState {
+  AVAILABLE
+  LEASED
+  MAINTENANCE
+}
+
+enum ContractState {
+  DRAFT
+  ACTIVE
+  COMPLETED
+  CANCELLED
+}
