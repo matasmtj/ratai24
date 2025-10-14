@@ -18,6 +18,8 @@ model City {
 
 model Car {
   id              Int        @id @default(autoincrement())
+  vin             String     @unique                      // NEW: global unique
+  numberPlate     String     @unique                      // NEW: usually unique per country; we keep global unique
   make            String
   model           String
   year            Int
@@ -27,15 +29,16 @@ model Car {
   contracts       Contract[]
   seatCount       Int        @default(5)
   fuelType        FuelType
-  powerKW         Int // kilowatts
-  engineCapacityL Float? // litres; null for ELECTRIC
+  powerKW         Int
+  engineCapacityL Float?
   bodyType        BodyType
   gearbox         Gearbox
   state           CarState   @default(AVAILABLE)
   odometerKm      Int        @default(0)
 
-  @@unique([make, model, year, cityId], name: "unique_car_in_city")
-  }
+  // REMOVE the old composite unique (no longer needed)
+  // @@unique([make, model, year, cityId], name: "unique_car_in_city")
+}
 
 model Contract {
   id                Int           @id @default(autoincrement())

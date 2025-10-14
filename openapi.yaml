@@ -1,10 +1,10 @@
 openapi: 3.1.0
 info:
   title: Car Lease API
-  version: 1.2.0
+  version: 1.3.0
   description: >
     REST API for City → Car → Contract with JWT (roles: guest/user/admin).
-    Cars have rich specs; Contracts track mileage/fuel and support flexible updates, plus completion workflow.
+    Cars have rich specs including VIN and number plate; Contracts track mileage/fuel and support flexible updates plus completion workflow.
 servers:
   - url: http://localhost:3000
 tags:
@@ -63,6 +63,14 @@ components:
       type: object
       properties:
         id: { type: integer }
+        vin:
+          type: string
+          example: "5YJ3E1EA7KF317000"
+          description: "Unique 17-character VIN (A-H J-N P R-Z, 0-9; no I/O/Q)"
+        numberPlate:
+          type: string
+          example: "EV-777"
+          description: "License plate"
         make: { type: string }
         model: { type: string }
         year: { type: integer }
@@ -70,39 +78,59 @@ components:
         cityId: { type: integer }
         seatCount: { type: integer, example: 5 }
         fuelType: { $ref: '#/components/schemas/FuelType' }
-        powerKW: { type: integer, example: 97 }
+        powerKW: { type: integer, example: 208 }
         engineCapacityL:
           type: number
           format: float
           nullable: true
-          example: 1.6
-          description: null for ELECTRIC
+          example: null
+          description: "null for ELECTRIC"
         bodyType: { $ref: '#/components/schemas/BodyType' }
         gearbox: { $ref: '#/components/schemas/Gearbox' }
         state: { $ref: '#/components/schemas/CarState' }
-        odometerKm: { type: integer, example: 60000 }
+        odometerKm: { type: integer, example: 15000 }
+
     CarCreate:
       type: object
       required:
-        [make, model, year, pricePerDay, cityId, fuelType, powerKW, bodyType, gearbox]
+        - vin
+        - numberPlate
+        - make
+        - model
+        - year
+        - pricePerDay
+        - cityId
+        - fuelType
+        - powerKW
+        - bodyType
+        - gearbox
       properties:
-        make: { type: string }
-        model: { type: string }
-        year: { type: integer }
-        pricePerDay: { type: number, format: float }
-        cityId: { type: integer }
-        seatCount: { type: integer, default: 5 }
+        vin:
+          type: string
+          description: "17-char VIN (A-H J-N P R-Z, 0-9; no I/O/Q)"
+          example: "5YJ3E1EA7KF317000"
+        numberPlate:
+          type: string
+          description: "2–12 chars; letters/digits/space/hyphen"
+          example: "EV-777"
+        make: { type: string, example: "Tesla" }
+        model: { type: string, example: "Model 3" }
+        year: { type: integer, example: 2022 }
+        pricePerDay: { type: number, format: float, example: 95 }
+        cityId: { type: integer, example: 1 }
+        seatCount: { type: integer, default: 5, example: 5 }
         fuelType: { $ref: '#/components/schemas/FuelType' }
-        powerKW: { type: integer }
+        powerKW: { type: integer, example: 208 }
         engineCapacityL:
           type: number
           format: float
           nullable: true
-          description: null for ELECTRIC
+          example: null
+          description: "null for ELECTRIC"
         bodyType: { $ref: '#/components/schemas/BodyType' }
         gearbox: { $ref: '#/components/schemas/Gearbox' }
         state: { $ref: '#/components/schemas/CarState' }
-        odometerKm: { type: integer, default: 0 }
+        odometerKm: { type: integer, default: 0, example: 15000 }
 
     # ---------- Contract ----------
     Contract:
@@ -267,6 +295,7 @@ paths:
         '400': { description: Bad request }
         '401': { description: Unauthorized }
         '403': { description: Forbidden }
+        '409': { description: Conflict (city name already exists) }
 
   /cities/{id}:
     get:
@@ -292,6 +321,7 @@ paths:
         '401': { description: Unauthorized }
         '403': { description: Forbidden }
         '404': { description: Not found }
+        '409': { description: Conflict (city name already exists) }
     delete:
       tags: [Cities]
       summary: Delete city (ADMIN)
@@ -333,6 +363,8 @@ paths:
           application/json:
             schema: { $ref: '#/components/schemas/CarCreate' }
             example:
+              vin: "5YJ3E1EA7KF317000"
+              numberPlate: "EV-777"
               make: Tesla
               model: Model 3
               year: 2022
@@ -351,6 +383,7 @@ paths:
         '400': { description: Bad request }
         '401': { description: Unauthorized }
         '403': { description: Forbidden }
+        '409': { description: Conflict (VIN or numberPlate already exists) }
 
   /cars/{id}:
     get:
@@ -369,8 +402,12 @@ paths:
         required: true
         content:
           application/json:
-            schema: { $ref: '#/components/schemas/CarCreate' }
+            schema:
+              # You can send full CarCreate shape; server also supports partial update.
+              $ref: '#/components/schemas/CarCreate'
             example:
+              vin: "JTDBR32E920123456"
+              numberPlate: "ABC-123"
               make: Toyota
               model: Corolla
               year: 2021
@@ -386,9 +423,11 @@ paths:
               odometerKm: 61000
       responses:
         '200': { description: OK, content: { application/json: { schema: { $ref: '#/components/schemas/Car' } } } }
+        '400': { description: Bad request }
         '401': { description: Unauthorized }
         '403': { description: Forbidden }
         '404': { description: Not found }
+        '409': { description: Conflict (VIN or numberPlate already exists) }
     delete:
       tags: [Cars]
       summary: Delete car (ADMIN)
