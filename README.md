@@ -39,3 +39,17 @@ Add, edit, and delete cars.
 Modify car reservations.
 
 Approve reservations.
+
+## Project structure
+
+This repository is organized using a lightweight MVC-style layout for clarity and maintainability:
+
+- `src/controllers/` – Request handlers with business logic for each domain (auth, cities, cars, contracts)
+- `src/routes/` – Express route definitions wiring paths to controllers and middlewares
+- `src/middlewares/` – Cross-cutting HTTP middlewares (auth, role checks)
+- `src/services/` – Stateless services (e.g., JWT and refresh token issuance/rotation)
+- `src/models/db.js` – Prisma client singleton shared across the app
+- `src/config.js` – Application configuration (port, JWT settings)
+- `src/errors.js` – Centralized error mapping/handler
+
+Public API paths and behavior remain unchanged; only file organization was improved.

@@ -7,10 +7,10 @@ import YAML from 'yamljs';
 import { config } from './src/config.js';
 import { errorHandler } from './src/errors.js';
 
-import authRoutes from './src/auth/auth.routes.js';
-import cityRoutes from './src/cities/cities.routes.js';
-import carRoutes from './src/cars/cars.routes.js';
-import contractRoutes from './src/contracts/contracts.routes.js';
+import authRoutes from './src/routes/auth.routes.js';
+import cityRoutes from './src/routes/cities.routes.js';
+import carRoutes from './src/routes/cars.routes.js';
+import contractRoutes from './src/routes/contracts.routes.js';
 
 const app = express();
 app.use(cors());
