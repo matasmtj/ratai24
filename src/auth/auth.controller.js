@@ -38,14 +38,7 @@ export async function refresh(req, res, next) {
     res.json(rotated);
   } catch (e) { next(e); }
 }
-export function requireRole(...roles) {
-  return (req, res, next) => {
-    if (!req.user || !roles.includes(req.user.role)) {
-      return res.status(403).json({ error: 'Forbidden' });
-    }
-    next();
-  };
-}
+
 export async function logout(req, res, next) {
   try {
     const { refreshToken } = req.body || {};

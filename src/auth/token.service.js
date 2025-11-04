@@ -1,4 +1,5 @@
 import jwt from 'jsonwebtoken';
+import crypto from 'crypto';
 import { PrismaClient } from '@prisma/client';
 import { config } from '../config.js';
 const prisma = new PrismaClient();
@@ -21,7 +22,7 @@ export async function rotateRefreshToken(oldToken) {
   const { token, expiresAt } = await issueRefreshToken(existing.userId);
   const user = await prisma.user.findUnique({ where: { id: existing.userId } });
   const access = signAccessToken(user);
-  return { access, refresh: token, refreshExpiresAt: expiresAt };
+  return { accessToken: access, refreshToken: token, refreshExpiresAt: expiresAt };
 }
 
 export async function revokeRefreshToken(token) {
@@ -29,7 +30,5 @@ export async function revokeRefreshToken(token) {
 }
 
 function cryptoRandom(len=48) {
-  // simple random string (good enough for lab)
-  return [...crypto.getRandomValues(new Uint8Array(len))]
-    .map(b => b.toString(16).padStart(2,'0')).join('');
+  return crypto.randomBytes(len).toString('hex');
 }

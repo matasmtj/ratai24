@@ -6,7 +6,8 @@ info:
     REST API for City → Car → Contract with JWT (roles: guest/user/admin).
     Cars have rich specs including VIN and number plate; Contracts track mileage/fuel and support flexible updates plus completion workflow.
 servers:
-  - url: http://localhost:3000
+  # Use relative URL so Swagger works both locally and in production (Render, etc.)
+  - url: /
 tags:
   - name: Auth
   - name: Cities
