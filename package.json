@@ -5,9 +5,10 @@
   "type": "module",
   "scripts": {
     "dev": "nodemon index.js",
-    "start": "node index.js",
+    "start": "npx prisma db push && node index.js",
     "db:push": "prisma db push",
     "db:seed": "node prisma/seed.js",
+    "postinstall": "prisma generate",
     "postman:demo": "bash demo.sh"
   },
   "keywords": [],
