@@ -5,8 +5,9 @@ import { badRequest, notFound } from '../errors.js';
 const asInt = (v) => { const n = Number(v); return Number.isInteger(n) ? n : null; };
 const asNum = (v) => { const n = Number(v); return Number.isFinite(n) ? n : null; };
 const isNonEmptyString = (v) => typeof v === 'string' && v.trim().length > 0;
-const isVIN = (v) => typeof v === 'string' && /^[A-HJ-NPR-Z0-9]{17}$/.test(v.trim().toUpperCase());
+const isVIN = (v) => typeof v === 'string' && v.trim().length === 17 && /^[A-HJ-NPR-Z0-9]{17}$/.test(v.trim().toUpperCase());
 const isPlate = (v) => typeof v === 'string' && /^[A-Z0-9\- ]{2,12}$/i.test(v.trim());
+const inRange = (n, min, max) => typeof n === 'number' && n >= min && n <= max;
 
 const FuelType = ['PETROL', 'DIESEL', 'ELECTRIC', 'HYBRID_HEV', 'HYBRID_PHEV'];
 const Gearbox  = ['MANUAL', 'AUTOMATIC'];
@@ -67,12 +68,26 @@ export const createCar = async (req, res, next) => {
     if (!isNonEmptyString(model)) throw badRequest('model must be a non-empty string');
 
     // numerics
-    const yearInt = asInt(year);         if (yearInt === null) throw badRequest('year must be an integer');
-    const price   = asNum(pricePerDay);  if (price   === null) throw badRequest('pricePerDay must be a number');
-    const cid     = asInt(cityId);       if (cid     === null) throw badRequest('cityId must be an integer');
-    const seats   = asInt(seatCount);    if (seats   === null) throw badRequest('seatCount must be an integer');
-    const kw      = asInt(powerKW);      if (kw      === null) throw badRequest('powerKW must be an integer');
+    const yearInt = asInt(year);         
+    if (yearInt === null) throw badRequest('year must be an integer');
+    if (!inRange(yearInt, 1900, new Date().getFullYear() + 2)) {
+      throw badRequest(`year must be between 1900 and ${new Date().getFullYear() + 2}`);
+    }
+    
+    const price   = asNum(pricePerDay);  
+    if (price   === null || price <= 0) throw badRequest('pricePerDay must be a positive number');
+    
+    const cid     = asInt(cityId);       
+    if (cid     === null || cid <= 0) throw badRequest('cityId must be a positive integer');
+    
+    const seats   = asInt(seatCount);    
+    if (seats   === null || !inRange(seats, 1, 20)) throw badRequest('seatCount must be between 1 and 20');
+    
+    const kw      = asInt(powerKW);      
+    if (kw      === null || !inRange(kw, 1, 2000)) throw badRequest('powerKW must be between 1 and 2000');
+    
     const odo     = asInt(odometerKm) ?? 0;
+    if (odo < 0 || odo > 10000000) throw badRequest('odometerKm must be between 0 and 10,000,000');
 
     // enums
     if (!FuelType.includes(fuelType)) throw badRequest(`fuelType must be one of: ${FuelType.join(', ')}`);
@@ -152,11 +167,33 @@ export const updateCar = async (req, res, next) => {
       if (!city) throw badRequest('Invalid cityId (city not found)');
       data.cityId = cid;
     }
-    if (data.year !== undefined)        { const y = asInt(data.year);        if (y === null) throw badRequest('year must be an integer');        data.year = y; }
-    if (data.pricePerDay !== undefined) { const p = asNum(data.pricePerDay); if (p === null) throw badRequest('pricePerDay must be a number');   data.pricePerDay = p; }
-    if (data.seatCount !== undefined)   { const s = asInt(data.seatCount);   if (s === null) throw badRequest('seatCount must be an integer');   data.seatCount = s; }
-    if (data.powerKW !== undefined)     { const k = asInt(data.powerKW);     if (k === null) throw badRequest('powerKW must be an integer');     data.powerKW = k; }
-    if (data.odometerKm !== undefined)  { const o = asInt(data.odometerKm);  if (o === null) throw badRequest('odometerKm must be an integer');  data.odometerKm = o; }
+    if (data.year !== undefined) {
+      const y = asInt(data.year);
+      if (y === null || !inRange(y, 1900, new Date().getFullYear() + 2)) {
+        throw badRequest(`year must be between 1900 and ${new Date().getFullYear() + 2}`);
+      }
+      data.year = y;
+    }
+    if (data.pricePerDay !== undefined) {
+      const p = asNum(data.pricePerDay);
+      if (p === null || p <= 0) throw badRequest('pricePerDay must be a positive number');
+      data.pricePerDay = p;
+    }
+    if (data.seatCount !== undefined) {
+      const s = asInt(data.seatCount);
+      if (s === null || !inRange(s, 1, 20)) throw badRequest('seatCount must be between 1 and 20');
+      data.seatCount = s;
+    }
+    if (data.powerKW !== undefined) {
+      const k = asInt(data.powerKW);
+      if (k === null || !inRange(k, 1, 2000)) throw badRequest('powerKW must be between 1 and 2000');
+      data.powerKW = k;
+    }
+    if (data.odometerKm !== undefined) {
+      const o = asInt(data.odometerKm);
+      if (o === null || o < 0 || o > 10000000) throw badRequest('odometerKm must be between 0 and 10,000,000');
+      data.odometerKm = o;
+    }
 
     // enums
     if (data.fuelType !== undefined && !FuelType.includes(data.fuelType))   throw badRequest(`fuelType must be one of: ${FuelType.join(', ')}`);

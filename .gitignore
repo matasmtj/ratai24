@@ -3,3 +3,14 @@ node_modules
 .env
 
 /generated/prisma
+
+# SQLite database files (no longer used - using PostgreSQL)
+*.db
+*.db-journal
+prisma/*.db
+prisma/*.db-journal
+
+# Backup folders
+backups/
+backup/
+*-backup/

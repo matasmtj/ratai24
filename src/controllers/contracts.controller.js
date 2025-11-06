@@ -60,6 +60,14 @@ export const createContract = async (req, res, next) => {
     // dates
     const sd = new Date(startDate), ed = new Date(endDate);
     if (isNaN(sd) || isNaN(ed) || ed <= sd) throw badRequest('Invalid dates');
+    
+    // Date range sanity checks
+    const now = new Date();
+    const oneYearAgo = new Date(now.getFullYear() - 1, now.getMonth(), now.getDate());
+    const tenYearsFromNow = new Date(now.getFullYear() + 10, now.getMonth(), now.getDate());
+    
+    if (sd < oneYearAgo) throw badRequest('startDate cannot be more than 1 year in the past');
+    if (ed > tenYearsFromNow) throw badRequest('endDate cannot be more than 10 years in the future');
 
     // notes (optional string)
     if (notes !== undefined && !isNonEmptyString(notes)) throw badRequest('notes must be a non-empty string');
@@ -67,6 +75,8 @@ export const createContract = async (req, res, next) => {
     const MS_PER_DAY = 1000 * 60 * 60 * 24;
     const days = Math.max(1, Math.ceil(( ed - sd ) / MS_PER_DAY));
     const totalPrice = days * car.pricePerDay;
+    
+    if (totalPrice < 0) throw badRequest('Calculated totalPrice is negative (invalid dates or pricePerDay)');
 
     const userId = req.user?.id ?? 1;
 
@@ -115,6 +125,14 @@ export const updateContract = async (req, res, next) => {
     if (isNaN(newStart) || isNaN(newEnd) || newEnd <= newStart) {
       throw badRequest('Invalid dates');
     }
+    
+    // Date range sanity checks
+    const now = new Date();
+    const oneYearAgo = new Date(now.getFullYear() - 1, now.getMonth(), now.getDate());
+    const tenYearsFromNow = new Date(now.getFullYear() + 10, now.getMonth(), now.getDate());
+    
+    if (newStart < oneYearAgo) throw badRequest('startDate cannot be more than 1 year in the past');
+    if (newEnd > tenYearsFromNow) throw badRequest('endDate cannot be more than 10 years in the future');
 
     // car (optional) + FK
     const newCarId = carId !== undefined ? asInt(carId) : current.carId;
@@ -130,6 +148,8 @@ export const updateContract = async (req, res, next) => {
     const MS_PER_DAY = 1000 * 60 * 60 * 24;
     const days = Math.max(1, Math.ceil(( newEnd - newStart ) / MS_PER_DAY));
     const totalPrice = days * car.pricePerDay;
+    
+    if (totalPrice < 0) throw badRequest('Calculated totalPrice is negative (invalid dates or pricePerDay)');
 
     const upd = {
       carId: newCarId,
@@ -141,6 +161,7 @@ export const updateContract = async (req, res, next) => {
     if (mileageEndKm != null) {
       const endKm = asInt(mileageEndKm);
       if (endKm === null || endKm < 0) throw badRequest('mileageEndKm must be a non-negative integer');
+      if (endKm < current.mileageStartKm) throw badRequest('mileageEndKm cannot be less than mileageStartKm');
       upd.mileageEndKm = endKm;
     }
     if (fuelLevelEndPct != null) {
