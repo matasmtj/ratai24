@@ -1,55 +1,33 @@
-# ratai24
-CarLease — Project Overview
-1. Description of the Problem Being Solved
-1.1 System Purpose
+# 🚘 Car Rental, Leasing & Sales Platform
 
-The goal of this project is to streamline the manual process of creating car rental reservation agreements and help the business with promotion.
+This project aims to simplify the manual process of creating rental agreements while helping businesses promote their vehicles online. It provides a convenient and transparent way for users to browse, rent, and eventually buy cars they enjoy driving.
 
-A guest can browse the list of cars and see details with pricing.
+# 🌟 Overview
 
-If a vehicle suits them, the user registers or logs in to view available dates and submit a rental request.
+Guests can freely explore the list of available cars, view detailed information such as specifications, photos, and rental prices.
+If a vehicle interests them, they can register or log in to access additional features such as checking available dates and submitting a rental request.
 
-An administrator can then approve the reservation, after which the user arrives at the physical lot to sign the contract and pick up the car.
+Once the request is submitted, an administrator reviews and approves the reservation.
+After approval, the user simply visits the physical car lot to sign the agreement and pick up the car.
 
-2. Functional Requirements
-2.1 Guest (Unauthenticated User)
+# 🚗 Future Vision
 
-View the platform’s landing page.
+The system will evolve beyond standard car rentals into a hybrid rental–purchase platform, allowing customers to buy the car they’ve rented if they fall in love with it — essentially offering an extended test drive experience.
 
-Log in to the web application.
+In addition, the project plans to include a car parts marketplace, where users can:
 
-Browse cars and see their details (including price).
+Purchase used parts directly from the business,
 
-2.2 Registered User
+Or order new parts from partner stores through our integrated outsourcing system.
 
-Log out of the application.
+This way, the platform will serve as a complete automotive ecosystem — combining car rentals, sales, and spare parts in one unified place.
 
-Register (sign up) and log in to the platform.
+# 💡 Key Goals
 
-Reserve a car for a specific date.
+Simplify and digitize the car rental reservation process.
 
-Cancel a reservation.
+Help car rental businesses reach more customers online.
 
-2.3 Administrator
+Build trust and convenience through a seamless user experience.
 
-Remove users.
-
-Add, edit, and delete cars.
-
-Modify car reservations.
-
-Approve reservations.
-
-## Project structure
-
-This repository is organized using a lightweight MVC-style layout for clarity and maintainability:
-
-- `src/controllers/` – Request handlers with business logic for each domain (auth, cities, cars, contracts)
-- `src/routes/` – Express route definitions wiring paths to controllers and middlewares
-- `src/middlewares/` – Cross-cutting HTTP middlewares (auth, role checks)
-- `src/services/` – Stateless services (e.g., JWT and refresh token issuance/rotation)
-- `src/models/db.js` – Prisma client singleton shared across the app
-- `src/config.js` – Application configuration (port, JWT settings)
-- `src/errors.js` – Centralized error mapping/handler
-
-Public API paths and behavior remain unchanged; only file organization was improved.
+Expand into a full automotive marketplace with sales and parts integration.
