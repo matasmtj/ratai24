@@ -14,3 +14,7 @@ prisma/*.db-journal
 backups/
 backup/
 *-backup/
+
+# Uploaded files
+uploads/
+!uploads/.gitkeep

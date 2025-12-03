@@ -27,6 +27,7 @@ model Car {
   cityId          Int
   city            City       @relation(fields: [cityId], references: [id], onDelete: Cascade)
   contracts       Contract[]
+  images          CarImage[]
   seatCount       Int        @default(5)
   fuelType        FuelType
   powerKW         Int
@@ -35,9 +36,23 @@ model Car {
   gearbox         Gearbox
   state           CarState   @default(AVAILABLE)
   odometerKm      Int        @default(0)
+  createdAt       DateTime   @default(now())
+  updatedAt       DateTime   @default(now()) @updatedAt
 
   // REMOVE the old composite unique (no longer needed)
   // @@unique([make, model, year, cityId], name: "unique_car_in_city")
+}
+
+model CarImage {
+  id        Int      @id @default(autoincrement())
+  carId     Int
+  car       Car      @relation(fields: [carId], references: [id], onDelete: Cascade)
+  filename  String   // stored filename (e.g., "abc123.jpg")
+  url       String   // public URL or path (e.g., "/uploads/abc123.jpg")
+  isMain    Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  @@index([carId])
 }
 
 model Contract {

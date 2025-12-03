@@ -20,7 +20,15 @@ const carPublic = {
   numberPlate: true,
   make: true, model: true, year: true, pricePerDay: true, cityId: true,
   seatCount: true, fuelType: true, powerKW: true, engineCapacityL: true,
-  bodyType: true, gearbox: true, state: true, odometerKm: true
+  bodyType: true, gearbox: true, state: true, odometerKm: true,
+  images: {
+    select: {
+      id: true,
+      url: true,
+      isMain: true,
+      createdAt: true
+    }
+  }
 };
 
 // GET /cars?cityId=

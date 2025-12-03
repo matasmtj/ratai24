@@ -12,16 +12,22 @@ import cityRoutes from './src/routes/cities.routes.js';
 import carRoutes from './src/routes/cars.routes.js';
 import contractRoutes from './src/routes/contracts.routes.js';
 import debugRoutes from './src/routes/debug.routes.js';
+import carImageRoutes from './src/routes/car-images.routes.js';
 
 const app = express();
 app.use(cors());
 app.use(express.json());
 app.use(morgan('dev'));
+
+// Serve static files from uploads directory
+app.use('/uploads', express.static('uploads'));
+
 // Routes
 app.use(authRoutes);
 app.use(cityRoutes);
 app.use(carRoutes);
 app.use(contractRoutes);
+app.use(carImageRoutes);
 app.use('/debug', debugRoutes);
 
 // Swagger (OpenAPI YAML)

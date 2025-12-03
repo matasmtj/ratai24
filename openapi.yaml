@@ -90,6 +90,10 @@ components:
         gearbox: { $ref: '#/components/schemas/Gearbox' }
         state: { $ref: '#/components/schemas/CarState' }
         odometerKm: { type: integer, example: 15000 }
+        images:
+          type: array
+          items:
+            $ref: '#/components/schemas/CarImage'
 
     CarCreate:
       type: object
@@ -132,6 +136,17 @@ components:
         gearbox: { $ref: '#/components/schemas/Gearbox' }
         state: { $ref: '#/components/schemas/CarState' }
         odometerKm: { type: integer, default: 0, example: 15000 }
+
+    # ---------- Car Image ----------
+    CarImage:
+      type: object
+      properties:
+        id: { type: integer, example: 1 }
+        carId: { type: integer, example: 1 }
+        filename: { type: string, example: "1733154123456-a1b2c3d4.jpg" }
+        url: { type: string, example: "/uploads/1733154123456-a1b2c3d4.jpg" }
+        isMain: { type: boolean, example: true }
+        createdAt: { type: string, format: date-time }
 
     # ---------- Contract ----------
     Contract:
@@ -559,3 +574,154 @@ paths:
         '403': { description: Forbidden }
         '404': { description: Not found }
         '409': { description: Invalid state transition }
+
+  # ---------- Car Images ----------
+  /cars/{carId}/images:
+    post:
+      tags: [Cars]
+      summary: Upload one or more images for a car (ADMIN only)
+      description: >
+        Upload car images. The first uploaded image becomes the main image if no main image exists.
+        Maximum 10 images per request. Supported formats: JPEG, PNG, GIF, WebP. Max size: 5MB per file.
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - in: path
+          name: carId
+          required: true
+          schema: { type: integer }
+          description: ID of the car
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                images:
+                  type: array
+                  items:
+                    type: string
+                    format: binary
+                  description: Image files to upload (max 10)
+      responses:
+        '201':
+          description: Images uploaded successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message: { type: string, example: "3 image(s) uploaded successfully" }
+                  images:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/CarImage'
+        '400':
+          description: Bad request - no files or invalid file type
+        '401':
+          description: Unauthorized
+        '403':
+          description: Forbidden - ADMIN only
+        '404':
+          description: Car not found
+    
+    get:
+      tags: [Cars]
+      summary: List all images for a car
+      description: Returns all images for a specific car, sorted with main image first
+      parameters:
+        - in: path
+          name: carId
+          required: true
+          schema: { type: integer }
+          description: ID of the car
+      responses:
+        '200':
+          description: List of car images
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  images:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/CarImage'
+        '400': { description: Bad request }
+        '404': { description: Car not found }
+
+  /cars/{carId}/images/{imageId}/main:
+    put:
+      tags: [Cars]
+      summary: Set an image as the main image for a car (ADMIN only)
+      description: >
+        Sets the specified image as the main image for the car.
+        All other images for this car will have isMain set to false.
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - in: path
+          name: carId
+          required: true
+          schema: { type: integer }
+          description: ID of the car
+        - in: path
+          name: imageId
+          required: true
+          schema: { type: integer }
+          description: ID of the image to set as main
+      responses:
+        '200':
+          description: Main image updated successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message: { type: string, example: "Main image updated successfully" }
+                  image: { $ref: '#/components/schemas/CarImage' }
+        '400':
+          description: Bad request - image does not belong to car
+        '401':
+          description: Unauthorized
+        '403':
+          description: Forbidden - ADMIN only
+        '404':
+          description: Car or image not found
+
+  /cars/{carId}/images/{imageId}:
+    delete:
+      tags: [Cars]
+      summary: Delete a car image (ADMIN only)
+      description: >
+        Deletes the specified image from the car.
+        If the deleted image was the main image, another image (oldest) will automatically become the main image.
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - in: path
+          name: carId
+          required: true
+          schema: { type: integer }
+          description: ID of the car
+        - in: path
+          name: imageId
+          required: true
+          schema: { type: integer }
+          description: ID of the image to delete
+      responses:
+        '200':
+          description: Image deleted successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message: { type: string, example: "Image deleted successfully" }
+                  image: { $ref: '#/components/schemas/CarImage' }
+        '400':
+          description: Bad request - image does not belong to car
+        '401':
+          description: Unauthorized
+        '403':
+          description: Forbidden - ADMIN only
+        '404':
+          description: Car or image not found
