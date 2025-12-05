@@ -1,11 +1,23 @@
 import multer from 'multer';
 import path from 'path';
 import crypto from 'crypto';
+import fs from 'fs';
+
+// Resolve absolute uploads directory and ensure it exists
+const uploadsDir = path.resolve('uploads');
+try {
+  if (!fs.existsSync(uploadsDir)) {
+    fs.mkdirSync(uploadsDir, { recursive: true });
+  }
+} catch (e) {
+  // Do not crash middleware on startup; log and continue
+  console.error('Upload middleware: failed to ensure uploads directory:', e);
+}
 
 // Configure storage
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
-    cb(null, 'uploads/'); // Store in uploads folder
+    cb(null, uploadsDir); // Store in absolute uploads folder
   },
   filename: (req, file, cb) => {
     // Generate unique filename: timestamp-random-originalname

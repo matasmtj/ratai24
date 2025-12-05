@@ -3,6 +3,8 @@ import cors from 'cors';
 import morgan from 'morgan';
 import swaggerUi from 'swagger-ui-express';
 import YAML from 'yamljs';
+import fs from 'fs';
+import path from 'path';
 
 import { config } from './src/config.js';
 import { errorHandler } from './src/errors.js';
@@ -18,6 +20,16 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 app.use(morgan('dev'));
+
+// Ensure uploads directory exists (needed on Render)
+const uploadsDir = path.resolve('uploads');
+try {
+  if (!fs.existsSync(uploadsDir)) {
+    fs.mkdirSync(uploadsDir, { recursive: true });
+  }
+} catch (e) {
+  console.error('Failed to ensure uploads directory:', e);
+}
 
 // Serve static files from uploads directory
 app.use('/uploads', express.static('uploads'));
