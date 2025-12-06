@@ -16,7 +16,72 @@ const isOwnerOrAdmin = (req, userId) => {
 // GET /contracts
 export const listContracts = async (req, res, next) => {
   try {
-    const items = await prisma.contract.findMany();
+    // Admin can filter by state, userId, carId
+    const where = {};
+    
+    if (req.query.state) {
+      if (!ContractState.includes(req.query.state)) {
+        throw badRequest(`state must be one of: ${ContractState.join(', ')}`);
+      }
+      where.state = req.query.state;
+    }
+    
+    if (req.query.userId) {
+      const uid = asInt(req.query.userId);
+      if (uid === null) throw badRequest('userId must be an integer');
+      where.userId = uid;
+    }
+    
+    if (req.query.carId) {
+      const cid = asInt(req.query.carId);
+      if (cid === null) throw badRequest('carId must be an integer');
+      where.carId = cid;
+    }
+    
+    const items = await prisma.contract.findMany({ 
+      where,
+      orderBy: { startDate: 'desc' }
+    });
+    res.json(items);
+  } catch (e) { next(e); }
+};
+
+// GET /contracts/my - User gets their own contracts
+export const getMyContracts = async (req, res, next) => {
+  try {
+    if (!req.user) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+    
+    const where = { userId: req.user.id };
+    
+    // Allow filtering by state
+    if (req.query.state) {
+      if (!ContractState.includes(req.query.state)) {
+        throw badRequest(`state must be one of: ${ContractState.join(', ')}`);
+      }
+      where.state = req.query.state;
+    }
+    
+    const items = await prisma.contract.findMany({ 
+      where,
+      orderBy: { startDate: 'desc' },
+      include: {
+        car: {
+          select: {
+            id: true,
+            make: true,
+            model: true,
+            year: true,
+            numberPlate: true,
+            images: {
+              where: { isMain: true },
+              select: { url: true }
+            }
+          }
+        }
+      }
+    });
     res.json(items);
   } catch (e) { next(e); }
 };
@@ -271,4 +336,68 @@ export const completeContract = async (req, res, next) => {
 
     res.json(updated);
   } catch (e) { next(e); }
+};
+
+// POST /contracts/:id/activate - Admin activates DRAFT → ACTIVE
+export const activateContract = async (req, res, next) => {
+  try {
+    const id = asInt(req.params.id);
+    if (id === null) throw badRequest('id must be an integer');
+
+    const current = await prisma.contract.findUnique({ where: { id } });
+    if (!current) throw notFound('Contract not found');
+
+    if (current.state !== 'DRAFT') {
+      return res.status(409).json({ error: `Cannot activate contract in state ${current.state}. Only DRAFT contracts can be activated.` });
+    }
+
+    const updated = await prisma.contract.update({
+      where: { id },
+      data: { state: 'ACTIVE' }
+    });
+
+    res.json(updated);
+  } catch (e) {
+    if (e?.code === 'P2025') return res.status(404).json({ error: 'Contract not found' });
+    next(e);
+  }
+};
+
+// POST /contracts/:id/cancel - User/Admin cancels contract
+export const cancelContract = async (req, res, next) => {
+  try {
+    const id = asInt(req.params.id);
+    if (id === null) throw badRequest('id must be an integer');
+
+    const current = await prisma.contract.findUnique({ where: { id } });
+    if (!current) throw notFound('Contract not found');
+
+    // Check ownership for non-admin users
+    if (!isOwnerOrAdmin(req, current.userId)) {
+      return res.status(403).json({ error: 'Forbidden' });
+    }
+
+    // Can only cancel DRAFT or ACTIVE contracts
+    if (current.state === 'COMPLETED' || current.state === 'CANCELLED') {
+      return res.status(409).json({ error: `Cannot cancel contract in state ${current.state}` });
+    }
+
+    const updated = await prisma.contract.update({
+      where: { id },
+      data: { state: 'CANCELLED' }
+    });
+
+    // If car was marked as LEASED, set it back to AVAILABLE
+    if (current.state === 'ACTIVE') {
+      await prisma.car.update({
+        where: { id: current.carId },
+        data: { state: 'AVAILABLE' }
+      });
+    }
+
+    res.json(updated);
+  } catch (e) {
+    if (e?.code === 'P2025') return res.status(404).json({ error: 'Contract not found' });
+    next(e);
+  }
 };

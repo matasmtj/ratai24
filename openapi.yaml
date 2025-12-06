@@ -1,15 +1,17 @@
 openapi: 3.1.0
 info:
   title: Car Lease API
-  version: 1.3.0
+  version: 1.4.0
   description: >
     REST API for City → Car → Contract with JWT (roles: guest/user/admin).
     Cars have rich specs including VIN and number plate; Contracts track mileage/fuel and support flexible updates plus completion workflow.
+    Version 1.4.0 adds user profile management and enhanced contract management (my contracts, activate, cancel).
 servers:
   # Use relative URL so Swagger works both locally and in production (Render, etc.)
   - url: /
 tags:
   - name: Auth
+  - name: Users
   - name: Cities
   - name: Cars
   - name: Contracts
@@ -148,6 +150,22 @@ components:
         isMain: { type: boolean, example: true }
         createdAt: { type: string, format: date-time }
 
+    # ---------- User ----------
+    User:
+      type: object
+      properties:
+        id: { type: integer, example: 1 }
+        email: { type: string, format: email, example: "user@example.com" }
+        role: { type: string, enum: [GUEST, USER, ADMIN], example: "USER" }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+    UserUpdate:
+      type: object
+      properties:
+        email: { type: string, format: email, example: "newemail@example.com" }
+        password: { type: string, format: password, minLength: 8, example: "newpassword123" }
+      additionalProperties: false
+
     # ---------- Contract ----------
     Contract:
       type: object
@@ -284,6 +302,68 @@ paths:
                 refreshToken: { type: string }
       responses:
         '204': { description: No Content }
+
+  # ---------- Users ----------
+  /users/me:
+    get:
+      tags: [Users]
+      summary: Get current user profile
+      description: Returns the authenticated user's profile information
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200':
+          description: User profile
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+    put:
+      tags: [Users]
+      summary: Update current user profile
+      description: >
+        Update email and/or password.
+        Email must be unique and valid format.
+        Password must be at least 8 characters.
+        Changing password will revoke all refresh tokens.
+        Role cannot be changed via this endpoint.
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UserUpdate'
+      responses:
+        '200':
+          description: Updated user profile
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+        '400':
+          description: Validation error (invalid email format or password too short)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '409':
+          description: Email already in use
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
 
   # ---------- Cities ----------
   /cities:
@@ -469,7 +549,27 @@ paths:
     get:
       tags: [Contracts]
       summary: List all contracts (ADMIN)
+      description: Filter contracts by state, userId, or carId. Results ordered by startDate descending.
       security: [{ bearerAuth: [] }]
+      parameters:
+        - in: query
+          name: state
+          required: false
+          schema:
+            $ref: '#/components/schemas/ContractState'
+          description: Filter by contract state
+        - in: query
+          name: userId
+          required: false
+          schema:
+            type: integer
+          description: Filter by user ID
+        - in: query
+          name: carId
+          required: false
+          schema:
+            type: integer
+          description: Filter by car ID
       responses:
         '200':
           description: OK
@@ -495,6 +595,38 @@ paths:
       responses:
         '201': { description: Created, content: { application/json: { schema: { $ref: '#/components/schemas/Contract' } } } }
         '400': { description: Bad request }
+        '401': { description: Unauthorized }
+
+  /contracts/my:
+    get:
+      tags: [Contracts]
+      summary: Get current user's contracts
+      description: Returns all contracts for the authenticated user with car details and main image
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200':
+          description: User's contracts
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  allOf:
+                    - $ref: '#/components/schemas/Contract'
+                    - type: object
+                      properties:
+                        car:
+                          type: object
+                          properties:
+                            id: { type: integer }
+                            make: { type: string }
+                            model: { type: string }
+                            year: { type: integer }
+                            numberPlate: { type: string }
+                            images:
+                              type: array
+                              items:
+                                $ref: '#/components/schemas/CarImage'
         '401': { description: Unauthorized }
 
   /contracts/{id}:
@@ -574,6 +706,67 @@ paths:
         '403': { description: Forbidden }
         '404': { description: Not found }
         '409': { description: Invalid state transition }
+
+  /contracts/{id}/activate:
+    post:
+      tags: [Contracts]
+      summary: Activate a contract (ADMIN only). Transitions from DRAFT to ACTIVE.
+      description: >
+        Changes contract state from DRAFT to ACTIVE and sets the associated car's state to LEASED.
+        Only contracts in DRAFT state can be activated.
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: integer }
+          description: Contract ID
+      responses:
+        '200':
+          description: Activated contract
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Contract' }
+        '400':
+          description: Bad request - contract not in DRAFT state
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401': { description: Unauthorized }
+        '403': { description: Forbidden - requires ADMIN role }
+        '404': { description: Contract not found }
+
+  /contracts/{id}/cancel:
+    post:
+      tags: [Contracts]
+      summary: Cancel a contract (owner or ADMIN). Transitions DRAFT or ACTIVE to CANCELLED.
+      description: >
+        Changes contract state to CANCELLED.
+        If contract was ACTIVE, sets the associated car's state back to AVAILABLE.
+        Cannot cancel contracts that are already COMPLETED or CANCELLED.
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: integer }
+          description: Contract ID
+      responses:
+        '200':
+          description: Cancelled contract
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Contract' }
+        '400':
+          description: Bad request - contract already completed or cancelled
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401': { description: Unauthorized }
+        '403': { description: Forbidden - must be owner or ADMIN }
+        '404': { description: Contract not found }
 
   # ---------- Car Images ----------
   /cars/{carId}/images:
