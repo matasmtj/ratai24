@@ -1,11 +1,11 @@
 openapi: 3.1.0
 info:
   title: Car Lease API
-  version: 1.4.0
+  version: 1.5.0
   description: >
     REST API for City → Car → Contract with JWT (roles: guest/user/admin).
     Cars have rich specs including VIN and number plate; Contracts track mileage/fuel and support flexible updates plus completion workflow.
-    Version 1.4.0 adds user profile management and enhanced contract management (my contracts, activate, cancel).
+    Version 1.5.0 adds admin user management (create, list, update, delete users), user profile fields (firstName, lastName, phoneNumber), and enhanced contract filtering by userId.
 servers:
   # Use relative URL so Swagger works both locally and in production (Render, etc.)
   - url: /
@@ -156,6 +156,9 @@ components:
       properties:
         id: { type: integer, example: 1 }
         email: { type: string, format: email, example: "user@example.com" }
+        firstName: { type: string, nullable: true, example: "John" }
+        lastName: { type: string, nullable: true, example: "Doe" }
+        phoneNumber: { type: string, nullable: true, example: "+37060012345" }
         role: { type: string, enum: [GUEST, USER, ADMIN], example: "USER" }
         createdAt: { type: string, format: date-time }
         updatedAt: { type: string, format: date-time }
@@ -163,7 +166,30 @@ components:
       type: object
       properties:
         email: { type: string, format: email, example: "newemail@example.com" }
+        firstName: { type: string, nullable: true, example: "John" }
+        lastName: { type: string, nullable: true, example: "Doe" }
+        phoneNumber: { type: string, nullable: true, example: "+37060012345" }
         password: { type: string, format: password, minLength: 8, example: "newpassword123" }
+      additionalProperties: false
+    UserCreate:
+      type: object
+      required: [email, password]
+      properties:
+        email: { type: string, format: email, example: "newuser@example.com" }
+        password: { type: string, format: password, minLength: 8, example: "password123" }
+        firstName: { type: string, example: "John" }
+        lastName: { type: string, example: "Doe" }
+        phoneNumber: { type: string, example: "+37060012345" }
+        role: { type: string, enum: [GUEST, USER, ADMIN], example: "USER" }
+    UserAdminUpdate:
+      type: object
+      properties:
+        email: { type: string, format: email, example: "newemail@example.com" }
+        firstName: { type: string, nullable: true, example: "John" }
+        lastName: { type: string, nullable: true, example: "Doe" }
+        phoneNumber: { type: string, nullable: true, example: "+37060012345" }
+        password: { type: string, format: password, minLength: 8, example: "newpassword123" }
+        role: { type: string, enum: [GUEST, USER, ADMIN], example: "USER" }
       additionalProperties: false
 
     # ---------- Contract ----------
@@ -327,7 +353,7 @@ paths:
       tags: [Users]
       summary: Update current user profile
       description: >
-        Update email and/or password.
+        Update email, firstName, lastName, phoneNumber, and/or password.
         Email must be unique and valid format.
         Password must be at least 8 characters.
         Changing password will revoke all refresh tokens.
@@ -360,6 +386,239 @@ paths:
                 $ref: '#/components/schemas/Error'
         '409':
           description: Email already in use
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /users:
+    get:
+      tags: [Users]
+      summary: List all users (Admin only)
+      description: >
+        Get a list of all users with optional filtering.
+        Requires ADMIN role.
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - name: role
+          in: query
+          schema:
+            type: string
+            enum: [GUEST, USER, ADMIN]
+          description: Filter by user role
+        - name: search
+          in: query
+          schema:
+            type: string
+          description: Search by email, firstName, or lastName
+      responses:
+        '200':
+          description: List of users
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/User'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: Forbidden - requires ADMIN role
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+    post:
+      tags: [Users]
+      summary: Create new user (Admin only)
+      description: >
+        Create a new user with specified role.
+        Requires ADMIN role.
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UserCreate'
+      responses:
+        '201':
+          description: User created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+        '400':
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: Forbidden - requires ADMIN role
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '409':
+          description: Email already in use
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /users/{id}:
+    get:
+      tags: [Users]
+      summary: Get user by ID (Admin only)
+      description: >
+        Get detailed information about a specific user.
+        Requires ADMIN role.
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+          description: User ID
+      responses:
+        '200':
+          description: User details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+        '400':
+          description: Invalid user ID
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: Forbidden - requires ADMIN role
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: User not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+    put:
+      tags: [Users]
+      summary: Update user (Admin only)
+      description: >
+        Update any user's details including role.
+        Admins can change user roles and all profile fields.
+        Requires ADMIN role.
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+          description: User ID
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UserAdminUpdate'
+      responses:
+        '200':
+          description: User updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+        '400':
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: Forbidden - requires ADMIN role
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: User not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '409':
+          description: Email already in use
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+    delete:
+      tags: [Users]
+      summary: Delete user (Admin only)
+      description: >
+        Delete a user from the system.
+        Admin cannot delete their own account.
+        Requires ADMIN role.
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+          description: User ID
+      responses:
+        '204':
+          description: User deleted
+        '400':
+          description: Cannot delete own account
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: Forbidden - requires ADMIN role
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: User not found
           content:
             application/json:
               schema:

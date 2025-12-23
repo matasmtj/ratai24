@@ -18,7 +18,48 @@ const isOwnerOrAdmin = (req, userId) => {
 // GET /contracts
 export const listContracts = async (req, res, next) => {
   try {
-    const items = await prisma.contract.findMany();
+    const { userId, state, carId } = req.query;
+    
+    const where = {};
+    
+    // Filter by userId (for admin to see specific user's contracts)
+    if (userId) {
+      const userIdNum = asInt(userId);
+      if (userIdNum !== null) {
+        where.userId = userIdNum;
+      }
+    }
+    
+    // Filter by state
+    if (state && ContractState.includes(state)) {
+      where.state = state;
+    }
+    
+    // Filter by carId
+    if (carId) {
+      const carIdNum = asInt(carId);
+      if (carIdNum !== null) {
+        where.carId = carIdNum;
+      }
+    }
+    
+    const items = await prisma.contract.findMany({
+      where,
+      include: {
+        car: {
+          select: {
+            id: true,
+            make: true,
+            model: true,
+            year: true,
+            vin: true,
+            numberPlate: true,
+          },
+        },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+    
     res.json(items);
   } catch (e) { next(e); }
 };
