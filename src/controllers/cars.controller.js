@@ -26,7 +26,11 @@ const carPublic = {
       id: true,
       url: true,
       isMain: true,
+      order: true,
       createdAt: true
+    },
+    orderBy: {
+      order: 'asc'
     }
   }
 };
@@ -261,5 +265,68 @@ export const listContractsForCar = async (req, res, next) => {
     const car = await prisma.car.findUnique({ where: { id }, include: { contracts: true } });
     if (!car) throw notFound('Car not found');
     res.json(car.contracts);
+  } catch (e) { next(e); }
+};
+
+// PUT /cars/:id/images/reorder
+export const reorderCarImages = async (req, res, next) => {
+  try {
+    const carId = asInt(req.params.id);
+    if (carId === null) throw badRequest('carId must be an integer');
+
+    const { imageIds } = req.body;
+    
+    // Validation
+    if (!Array.isArray(imageIds)) {
+      throw badRequest('imageIds must be an array');
+    }
+    if (imageIds.length === 0) {
+      throw badRequest('imageIds array cannot be empty');
+    }
+    if (!imageIds.every(id => Number.isInteger(id))) {
+      throw badRequest('All imageIds must be integers');
+    }
+
+    // Check if car exists
+    const car = await prisma.car.findUnique({
+      where: { id: carId },
+      include: { images: true }
+    });
+    if (!car) throw notFound('Car not found');
+
+    // Verify all image IDs belong to this car
+    const carImageIds = car.images.map(img => img.id);
+    const invalidIds = imageIds.filter(id => !carImageIds.includes(id));
+    if (invalidIds.length > 0) {
+      throw badRequest(`Images with IDs ${invalidIds.join(', ')} do not belong to this car`);
+    }
+
+    // Update order for each image
+    const updatePromises = imageIds.map((imageId, index) =>
+      prisma.carImage.update({
+        where: { id: imageId },
+        data: { order: index }
+      })
+    );
+
+    await Promise.all(updatePromises);
+
+    // Fetch updated images
+    const updatedImages = await prisma.carImage.findMany({
+      where: { carId },
+      orderBy: { order: 'asc' },
+      select: {
+        id: true,
+        url: true,
+        isMain: true,
+        order: true,
+        createdAt: true
+      }
+    });
+
+    res.json({
+      message: 'Images reordered successfully',
+      images: updatedImages
+    });
   } catch (e) { next(e); }
 };

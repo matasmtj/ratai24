@@ -8,12 +8,13 @@ datasource db {
 }
 
 model City {
-  id        Int      @id @default(autoincrement())
-  name      String   @unique
-  country   String
-  cars      Car[]
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id                     Int                     @id @default(autoincrement())
+  name                   String                  @unique
+  country                String
+  cars                   Car[]
+  contactOperationAreas  ContactOperationArea[]
+  createdAt              DateTime                @default(now())
+  updatedAt              DateTime                @updatedAt
 }
 
 model Car {
@@ -50,6 +51,7 @@ model CarImage {
   filename  String   // stored filename (e.g., "abc123.jpg")
   url       String   // public URL or path (e.g., "/uploads/abc123.jpg")
   isMain    Boolean  @default(false)
+  order     Int      @default(0) // order of the image in the gallery
   createdAt DateTime @default(now())
 
   @@index([carId])
@@ -135,4 +137,28 @@ enum ContractState {
   ACTIVE
   COMPLETED
   CANCELLED
+}
+
+model Contact {
+  id              Int                     @id @default(autoincrement())
+  email           String
+  phone           String
+  operationAreas  ContactOperationArea[]
+  createdAt       DateTime                @default(now())
+  updatedAt       DateTime                @updatedAt
+}
+
+model ContactOperationArea {
+  id         Int      @id @default(autoincrement())
+  contactId  Int
+  contact    Contact  @relation(fields: [contactId], references: [id], onDelete: Cascade)
+  cityId     Int
+  city       City     @relation(fields: [cityId], references: [id], onDelete: Cascade)
+  address    String?  // optional exact address for this city
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@unique([contactId, cityId])
+  @@index([contactId])
+  @@index([cityId])
 }

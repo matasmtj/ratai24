@@ -16,6 +16,7 @@ import contractRoutes from './src/routes/contracts.routes.js';
 import debugRoutes from './src/routes/debug.routes.js';
 import carImageRoutes from './src/routes/car-images.routes.js';
 import userRoutes from './src/routes/users.routes.js';
+import contactRoutes from './src/routes/contacts.routes.js';
 
 const app = express();
 app.use(cors());
@@ -42,6 +43,7 @@ app.use(carRoutes);
 app.use(contractRoutes);
 app.use(carImageRoutes);
 app.use(userRoutes);
+app.use(contactRoutes);
 app.use('/debug', debugRoutes);
 
 // Swagger (OpenAPI YAML)
