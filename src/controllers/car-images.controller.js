@@ -1,7 +1,6 @@
 import prisma from '../models/db.js';
 import { badRequest, notFound } from '../errors.js';
-import fs from 'fs/promises';
-import path from 'path';
+import { cloudinary } from '../middlewares/upload.middleware.js';
 
 const asInt = (v) => { const n = Number(v); return Number.isInteger(n) ? n : null; };
 
@@ -11,9 +10,8 @@ export const uploadCarImages = async (req, res, next) => {
     const carId = asInt(req.params.carId);
     if (carId === null) throw badRequest('carId must be an integer');
 
-    // Check if car exists
-    const car = await prisma.car.findUnique({ where: { id: carId } });
-    if (!car) throw notFound('Car not found');
+    // Car already validated by setCarFolder middleware
+    const car = req.carInfo;
 
     // Check if files were uploaded
     if (!req.files || req.files.length === 0) {
@@ -35,7 +33,7 @@ export const uploadCarImages = async (req, res, next) => {
           data: {
             carId,
             filename: file.filename,
-            url: `/uploads/${file.filename}`,
+            url: file.path, // Cloudinary URL
             isMain
           }
         });
@@ -47,16 +45,7 @@ export const uploadCarImages = async (req, res, next) => {
       images 
     });
   } catch (e) {
-    // Clean up uploaded files on error
-    if (req.files) {
-      for (const file of req.files) {
-        try {
-          await fs.unlink(file.path);
-        } catch (unlinkErr) {
-          console.error('Error deleting file:', unlinkErr);
-        }
-      }
-    }
+    // Cloudinary handles cleanup automatically on error
     next(e);
   }
 };
@@ -158,12 +147,23 @@ export const deleteCarImage = async (req, res, next) => {
     // Delete from database
     await prisma.carImage.delete({ where: { id: imageId } });
 
-    // Delete file from filesystem
-    const filePath = path.join('uploads', image.filename);
+    // Delete file from Cloudinary
     try {
-      await fs.unlink(filePath);
+      // Extract public_id from Cloudinary URL
+      // URL format: https://res.cloudinary.com/{cloud_name}/image/upload/v{version}/{folder}/{filename}.{format}
+      const urlParts = image.url.split('/');
+      const uploadIndex = urlParts.findIndex(part => part === 'upload');
+      
+      if (uploadIndex !== -1) {
+        // Get everything after 'upload/v{version}/'
+        const pathParts = urlParts.slice(uploadIndex + 2); // Skip 'upload' and version
+        const fileWithExt = pathParts.join('/');
+        const publicId = fileWithExt.substring(0, fileWithExt.lastIndexOf('.'));
+        
+        await cloudinary.uploader.destroy(publicId);
+      }
     } catch (unlinkErr) {
-      console.error('Error deleting file from filesystem:', unlinkErr);
+      console.error('Error deleting file from Cloudinary:', unlinkErr);
       // Continue even if file deletion fails
     }
 

@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { requireAuth } from '../middlewares/auth.middleware.js';
 import { requireRole } from '../middlewares/roles.middleware.js';
 import { upload } from '../middlewares/upload.middleware.js';
+import { setCarFolder } from '../middlewares/car-folder.middleware.js';
 import { 
   uploadCarImages, 
   listCarImages, 
@@ -12,7 +13,7 @@ import {
 const r = Router();
 
 // Upload images (ADMIN only, multiple files)
-r.post('/cars/:carId/images', requireAuth, requireRole('ADMIN'), upload.array('images', 10), uploadCarImages);
+r.post('/cars/:carId/images', requireAuth, requireRole('ADMIN'), setCarFolder, upload.array('images', 10), uploadCarImages);
 
 // List images (public)
 r.get('/cars/:carId/images', listCarImages);

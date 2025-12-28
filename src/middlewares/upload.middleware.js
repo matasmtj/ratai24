@@ -1,30 +1,28 @@
 import multer from 'multer';
 import path from 'path';
-import crypto from 'crypto';
-import fs from 'fs';
+import { v2 as cloudinary } from 'cloudinary';
+import { CloudinaryStorage } from 'multer-storage-cloudinary';
+import { config } from '../config.js';
 
-// Resolve absolute uploads directory and ensure it exists
-const uploadsDir = path.resolve('uploads');
-try {
-  if (!fs.existsSync(uploadsDir)) {
-    fs.mkdirSync(uploadsDir, { recursive: true });
-  }
-} catch (e) {
-  // Do not crash middleware on startup; log and continue
-  console.error('Upload middleware: failed to ensure uploads directory:', e);
-}
+// Configure Cloudinary
+cloudinary.config({
+  cloud_name: config.cloudinary.cloudName,
+  api_key: config.cloudinary.apiKey,
+  api_secret: config.cloudinary.apiSecret,
+});
 
-// Configure storage
-const storage = multer.diskStorage({
-  destination: (req, file, cb) => {
-    cb(null, uploadsDir); // Store in absolute uploads folder
-  },
-  filename: (req, file, cb) => {
-    // Generate unique filename: timestamp-random-originalname
-    const uniqueSuffix = crypto.randomBytes(8).toString('hex');
-    const ext = path.extname(file.originalname);
-    const name = path.basename(file.originalname, ext);
-    cb(null, `${Date.now()}-${uniqueSuffix}${ext}`);
+// Configure Cloudinary storage with dynamic folder
+const storage = new CloudinaryStorage({
+  cloudinary: cloudinary,
+  params: async (req, file) => {
+    // Use custom folder if provided in req, otherwise default
+    const folder = req.cloudinaryFolder || 'car-lease-images';
+    
+    return {
+      folder: folder,
+      allowed_formats: ['jpg', 'jpeg', 'png', 'gif', 'webp'],
+      transformation: [{ width: 1200, height: 900, crop: 'limit' }]
+    };
   }
 });
 
@@ -46,3 +44,5 @@ export const upload = multer({
     fileSize: 5 * 1024 * 1024, // 5MB max file size
   }
 });
+
+export { cloudinary };
