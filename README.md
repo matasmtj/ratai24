@@ -1,6 +1,11 @@
 # 🚘 Car Rental, Leasing & Sales Platform
+# BETA 
+# UI REPO
+https://github.com/matasmtj/ratai24-ui
 
 This project aims to simplify the manual process of creating rental agreements while helping businesses promote their vehicles online. It provides a convenient and transparent way for users to browse, rent, and eventually buy cars they enjoy driving.
+
+
 
 # 🌟 Overview
 
@@ -30,4 +35,4 @@ Help car rental businesses reach more customers online.
 
 Build trust and convenience through a seamless user experience.
 
-Expand into a full automotive marketplace with sales and parts integration.
+Expand into a full automotive marketplace with sales and parts integration-.
