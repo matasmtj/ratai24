@@ -1,11 +1,15 @@
 openapi: 3.1.0
 info:
-  title: Car Lease API
-  version: 1.5.0
+  title: Car Lease, Sale & Parts API
+  version: 2.0.0
   description: >
     REST API for City → Car → Contract with JWT (roles: guest/user/admin).
     Cars have rich specs including VIN and number plate; Contracts track mileage/fuel and support flexible updates plus completion workflow.
-    Version 1.5.0 adds admin user management (create, list, update, delete users), user profile fields (firstName, lastName, phoneNumber), and enhanced contract filtering by userId.
+    Version 2.0.0 adds:
+    - Cars for Sale feature (availableForLease, availableForSale, salePrice fields)
+    - Parts marketplace (car parts with mandatory and optional fields)
+    - Enhanced car management for dual lease/sale availability
+    - Parts with images, filtering, and inventory management
 servers:
   # Use relative URL so Swagger works both locally and in production (Render, etc.)
   - url: /
@@ -14,6 +18,8 @@ tags:
   - name: Users
   - name: Cities
   - name: Cars
+  - name: Cars for Sale
+  - name: Parts
   - name: Contacts
   - name: Contracts
 
@@ -47,6 +53,9 @@ components:
     ContractState:
       type: string
       enum: [DRAFT, ACTIVE, COMPLETED, CANCELLED]
+    PartCondition:
+      type: string
+      enum: [NEW, USED, REFURBISHED]
 
     # ---------- City ----------
     City:
@@ -79,6 +88,10 @@ components:
         model: { type: string }
         year: { type: integer }
         pricePerDay: { type: number, format: float }
+        availableForLease: { type: boolean, default: true, description: "Whether the car is available for lease" }
+        availableForSale: { type: boolean, default: false, description: "Whether the car is available for sale" }
+        salePrice: { type: number, format: float, nullable: true, description: "Sale price if car is for sale" }
+        saleDescription: { type: string, nullable: true, description: "Description/comment for sale listing" }
         cityId: { type: integer }
         seatCount: { type: integer, example: 5 }
         fuelType: { $ref: '#/components/schemas/FuelType' }
@@ -91,6 +104,7 @@ components:
           description: "null for ELECTRIC"
         bodyType: { $ref: '#/components/schemas/BodyType' }
         gearbox: { $ref: '#/components/schemas/Gearbox' }
+        colour: { type: string, nullable: true, description: "Car color" }
         state: { $ref: '#/components/schemas/CarState' }
         odometerKm: { type: integer, example: 15000 }
         images:
@@ -125,6 +139,10 @@ components:
         model: { type: string, example: "Model 3" }
         year: { type: integer, example: 2022 }
         pricePerDay: { type: number, format: float, example: 95 }
+        availableForLease: { type: boolean, default: true }
+        availableForSale: { type: boolean, default: false }
+        salePrice: { type: number, format: float, nullable: true, example: 25000 }
+        saleDescription: { type: string, nullable: true, example: "Well-maintained, single owner, full service history" }
         cityId: { type: integer, example: 1 }
         seatCount: { type: integer, default: 5, example: 5 }
         fuelType: { $ref: '#/components/schemas/FuelType' }
@@ -137,6 +155,7 @@ components:
           description: "null for ELECTRIC"
         bodyType: { $ref: '#/components/schemas/BodyType' }
         gearbox: { $ref: '#/components/schemas/Gearbox' }
+        colour: { type: string, example: "Blue" }
         state: { $ref: '#/components/schemas/CarState' }
         odometerKm: { type: integer, default: 0, example: 15000 }
 
@@ -148,6 +167,71 @@ components:
         carId: { type: integer, example: 1 }
         filename: { type: string, example: "1733154123456-a1b2c3d4.jpg" }
         url: { type: string, example: "/uploads/1733154123456-a1b2c3d4.jpg" }
+        isMain: { type: boolean, example: true }
+        order: { type: integer, example: 0, description: "Display order of the image" }
+        createdAt: { type: string, format: date-time }
+
+    # ---------- Part ----------
+    Part:
+      type: object
+      properties:
+        id: { type: integer }
+        make: { type: string, example: "BMW", description: "Car manufacturer" }
+        model: { type: string, example: "320i", description: "Car model" }
+        year: { type: integer, example: 2018 }
+        oem: { type: string, example: "51117222222", description: "OEM part number" }
+        partName: { type: string, example: "Front Bumper", description: "Name of the part" }
+        engineCapacityL: { type: number, format: float, nullable: true, example: 2.0 }
+        powerKW: { type: integer, nullable: true, example: 135 }
+        fuelType: { $ref: '#/components/schemas/FuelType', nullable: true }
+        colour: { type: string, nullable: true, example: "Black" }
+        gearbox: { $ref: '#/components/schemas/Gearbox', nullable: true }
+        bodyType: { $ref: '#/components/schemas/BodyType', nullable: true }
+        description: { type: string, nullable: true, description: "Detailed description of the part" }
+        condition: { $ref: '#/components/schemas/PartCondition' }
+        price: { type: number, format: float, example: 450.00 }
+        stockQuantity: { type: integer, example: 1, default: 1 }
+        images:
+          type: array
+          items:
+            $ref: '#/components/schemas/PartImage'
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+
+    PartCreate:
+      type: object
+      required:
+        - make
+        - model
+        - year
+        - oem
+        - partName
+        - price
+      properties:
+        make: { type: string, example: "BMW" }
+        model: { type: string, example: "320i" }
+        year: { type: integer, example: 2018 }
+        oem: { type: string, example: "51117222222" }
+        partName: { type: string, example: "Front Bumper" }
+        engineCapacityL: { type: number, format: float, nullable: true }
+        powerKW: { type: integer, nullable: true }
+        fuelType: { $ref: '#/components/schemas/FuelType', nullable: true }
+        colour: { type: string, nullable: true }
+        gearbox: { $ref: '#/components/schemas/Gearbox', nullable: true }
+        bodyType: { $ref: '#/components/schemas/BodyType', nullable: true }
+        description: { type: string, nullable: true }
+        condition: { $ref: '#/components/schemas/PartCondition', default: USED }
+        price: { type: number, format: float, example: 450.00 }
+        stockQuantity: { type: integer, default: 1 }
+
+    # ---------- Part Image ----------
+    PartImage:
+      type: object
+      properties:
+        id: { type: integer, example: 1 }
+        partId: { type: integer, example: 1 }
+        filename: { type: string, example: "1733154123456-part-a1b2c3.jpg" }
+        url: { type: string, example: "/uploads/parts/1733154123456-part-a1b2c3.jpg" }
         isMain: { type: boolean, example: true }
         order: { type: integer, example: 0, description: "Display order of the image" }
         createdAt: { type: string, format: date-time }
@@ -880,6 +964,418 @@ paths:
       responses:
         '200': { description: OK }
         '404': { description: Car not found }
+
+  # ========== Cars for Sale ==========
+  /cars/for-sale:
+    get:
+      tags: [Cars for Sale]
+      summary: List cars available for sale
+      description: >
+        Returns all cars where availableForSale is true.
+        Supports filtering by cityId, make, model, year, priceRange, etc.
+        Does NOT include license plate (numberPlate) in the response.
+      parameters:
+        - in: query
+          name: cityId
+          schema: { type: integer }
+          description: Filter by city
+        - in: query
+          name: make
+          schema: { type: string }
+          description: Filter by car make
+        - in: query
+          name: model
+          schema: { type: string }
+          description: Filter by car model
+        - in: query
+          name: minPrice
+          schema: { type: number, format: float }
+          description: Minimum sale price
+        - in: query
+          name: maxPrice
+          schema: { type: number, format: float }
+          description: Maximum sale price
+        - in: query
+          name: year
+          schema: { type: integer }
+          description: Filter by year
+      responses:
+        '200':
+          description: List of cars for sale (without numberPlate)
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    id: { type: integer }
+                    vin: { type: string }
+                    make: { type: string }
+                    model: { type: string }
+                    year: { type: integer }
+                    salePrice: { type: number, format: float }
+                    availableForLease: { type: boolean, description: "Indicates if also available for lease" }
+                    cityId: { type: integer }
+                    seatCount: { type: integer }
+                    fuelType: { $ref: '#/components/schemas/FuelType' }
+                    powerKW: { type: integer }
+                    engineCapacityL: { type: number, format: float, nullable: true }
+                    bodyType: { $ref: '#/components/schemas/BodyType' }
+                    gearbox: { $ref: '#/components/schemas/Gearbox' }
+                    colour: { type: string, nullable: true }
+                    odometerKm: { type: integer }
+                    images: { type: array, items: { $ref: '#/components/schemas/CarImage' } }
+
+  /cars/for-sale/{id}:
+    get:
+      tags: [Cars for Sale]
+      summary: Get car for sale details by ID
+      description: >
+        Returns detailed information about a car for sale.
+        Does NOT include license plate (numberPlate).
+        Includes a note about contacting the seller for more information.
+      parameters: [{ in: path, name: id, required: true, schema: { type: integer } }]
+      responses:
+        '200':
+          description: Car for sale details (without numberPlate)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  id: { type: integer }
+                  vin: { type: string }
+                  make: { type: string }
+                  model: { type: string }
+                  year: { type: integer }
+                  salePrice: { type: number, format: float }
+                  availableForLease: { type: boolean }
+                  cityId: { type: integer }
+                  seatCount: { type: integer }
+                  fuelType: { $ref: '#/components/schemas/FuelType' }
+                  powerKW: { type: integer }
+                  engineCapacityL: { type: number, format: float, nullable: true }
+                  bodyType: { $ref: '#/components/schemas/BodyType' }
+                  gearbox: { $ref: '#/components/schemas/Gearbox' }
+                  colour: { type: string, nullable: true }
+                  odometerKm: { type: integer }
+                  images: { type: array, items: { $ref: '#/components/schemas/CarImage' } }
+                  contactMessage: { type: string, example: "For more information, please contact us" }
+        '404':
+          description: Car not found or not available for sale
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  # ========== Parts ==========
+  /parts:
+    get:
+      tags: [Parts]
+      summary: List all car parts
+      description: >
+        Returns all car parts with optional filtering.
+        Supports filtering by make, model, year, OEM, partName, condition, etc.
+      parameters:
+        - in: query
+          name: make
+          schema: { type: string }
+          description: Filter by car make
+        - in: query
+          name: model
+          schema: { type: string }
+          description: Filter by car model
+        - in: query
+          name: year
+          schema: { type: integer }
+          description: Filter by year
+        - in: query
+          name: oem
+          schema: { type: string }
+          description: Filter by OEM part number
+        - in: query
+          name: partName
+          schema: { type: string }
+          description: Search by part name
+        - in: query
+          name: condition
+          schema: { $ref: '#/components/schemas/PartCondition' }
+          description: Filter by condition
+        - in: query
+          name: minPrice
+          schema: { type: number, format: float }
+          description: Minimum price
+        - in: query
+          name: maxPrice
+          schema: { type: number, format: float }
+          description: Maximum price
+        - in: query
+          name: inStock
+          schema: { type: boolean }
+          description: Show only parts in stock (stockQuantity > 0)
+      responses:
+        '200':
+          description: List of parts
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Part'
+    post:
+      tags: [Parts]
+      summary: Create new part (ADMIN only)
+      description: Add a new car part to the marketplace
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PartCreate'
+            example:
+              make: "BMW"
+              model: "320i"
+              year: 2018
+              oem: "51117222222"
+              partName: "Front Bumper"
+              condition: "USED"
+              price: 450.00
+              stockQuantity: 1
+              colour: "Black"
+              description: "Good condition front bumper, minor scratches"
+      responses:
+        '201':
+          description: Part created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Part'
+        '400': { description: Bad request }
+        '401': { description: Unauthorized }
+        '403': { description: Forbidden - ADMIN only }
+
+  /parts/{id}:
+    get:
+      tags: [Parts]
+      summary: Get part details by ID
+      parameters: [{ in: path, name: id, required: true, schema: { type: integer } }]
+      responses:
+        '200':
+          description: Part details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Part'
+        '404':
+          description: Part not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+    put:
+      tags: [Parts]
+      summary: Update part (ADMIN only)
+      security: [{ bearerAuth: [] }]
+      parameters: [{ in: path, name: id, required: true, schema: { type: integer } }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PartCreate'
+      responses:
+        '200':
+          description: Part updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Part'
+        '400': { description: Bad request }
+        '401': { description: Unauthorized }
+        '403': { description: Forbidden - ADMIN only }
+        '404': { description: Part not found }
+    delete:
+      tags: [Parts]
+      summary: Delete part (ADMIN only)
+      security: [{ bearerAuth: [] }]
+      parameters: [{ in: path, name: id, required: true, schema: { type: integer } }]
+      responses:
+        '200':
+          description: Part deleted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Part'
+        '401': { description: Unauthorized }
+        '403': { description: Forbidden - ADMIN only }
+        '404': { description: Part not found }
+
+  # ---------- Part Images ----------
+  /parts/{partId}/images:
+    post:
+      tags: [Parts]
+      summary: Upload one or more images for a part (ADMIN only)
+      description: >
+        Upload part images. The first uploaded image becomes the main image if no main image exists.
+        Maximum 10 images per request. Supported formats: JPEG, PNG, GIF, WebP. Max size: 5MB per file.
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - in: path
+          name: partId
+          required: true
+          schema: { type: integer }
+          description: ID of the part
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                images:
+                  type: array
+                  items:
+                    type: string
+                    format: binary
+                  description: Image files to upload (max 10)
+      responses:
+        '201':
+          description: Images uploaded successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message: { type: string, example: "3 image(s) uploaded successfully" }
+                  images:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/PartImage'
+        '400': { description: Bad request - no files or invalid file type }
+        '401': { description: Unauthorized }
+        '403': { description: Forbidden - ADMIN only }
+        '404': { description: Part not found }
+    
+    get:
+      tags: [Parts]
+      summary: List all images for a part
+      description: Returns all images for a specific part, sorted with main image first
+      parameters:
+        - in: path
+          name: partId
+          required: true
+          schema: { type: integer }
+          description: ID of the part
+      responses:
+        '200':
+          description: List of part images
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  images:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/PartImage'
+        '400': { description: Bad request }
+        '404': { description: Part not found }
+
+  /parts/{partId}/images/{imageId}/main:
+    put:
+      tags: [Parts]
+      summary: Set an image as the main image for a part (ADMIN only)
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - in: path
+          name: partId
+          required: true
+          schema: { type: integer }
+        - in: path
+          name: imageId
+          required: true
+          schema: { type: integer }
+      responses:
+        '200':
+          description: Main image updated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message: { type: string }
+                  image: { $ref: '#/components/schemas/PartImage' }
+        '400': { description: Bad request }
+        '401': { description: Unauthorized }
+        '403': { description: Forbidden - ADMIN only }
+        '404': { description: Part or image not found }
+
+  /parts/{partId}/images/reorder:
+    put:
+      tags: [Parts]
+      summary: Reorder part images (ADMIN only)
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - in: path
+          name: partId
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [imageIds]
+              properties:
+                imageIds:
+                  type: array
+                  items: { type: integer }
+      responses:
+        '200':
+          description: Images reordered
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message: { type: string }
+                  images: { type: array, items: { $ref: '#/components/schemas/PartImage' } }
+        '400': { description: Bad request }
+        '401': { description: Unauthorized }
+        '403': { description: Forbidden - ADMIN only }
+        '404': { description: Part not found }
+
+  /parts/{partId}/images/{imageId}:
+    delete:
+      tags: [Parts]
+      summary: Delete a part image (ADMIN only)
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - in: path
+          name: partId
+          required: true
+          schema: { type: integer }
+        - in: path
+          name: imageId
+          required: true
+          schema: { type: integer }
+      responses:
+        '200':
+          description: Image deleted
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message: { type: string }
+                  image: { $ref: '#/components/schemas/PartImage' }
+        '400': { description: Bad request }
+        '401': { description: Unauthorized }
+        '403': { description: Forbidden - ADMIN only }
+        '404': { description: Part or image not found }
 
   # ---------- Contracts ----------
   /contracts:

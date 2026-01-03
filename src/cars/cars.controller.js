@@ -19,12 +19,24 @@ const carPublic = {
   id: true,
   vin: true,
   numberPlate: true,
-  make: true, model: true, year: true, pricePerDay: true, cityId: true,
+  make: true, model: true, year: true, pricePerDay: true, 
+  availableForLease: true, availableForSale: true, salePrice: true, saleDescription: true,
+  cityId: true,
   seatCount: true, fuelType: true, powerKW: true, engineCapacityL: true,
-  bodyType: true, gearbox: true, state: true, odometerKm: true
+  bodyType: true, gearbox: true, colour: true, state: true, odometerKm: true,
+  images: {
+    select: {
+      id: true,
+      url: true,
+      isMain: true,
+      order: true,
+      createdAt: true
+    },
+    orderBy: { order: 'asc' }
+  }
 };
 
-// GET /cars?cityId=
+// GET /cars?cityId=&availableForSale=&availableForLease=&excludeNumberPlate=
 export const listCars = async (req, res, next) => {
   try {
     const where = {};
@@ -33,7 +45,22 @@ export const listCars = async (req, res, next) => {
       if (cid === null) throw badRequest('cityId must be an integer');
       where.cityId = cid;
     }
-    const items = await prisma.car.findMany({ where, select: carPublic });
+    
+    // Filter by availability
+    if (req.query.availableForSale !== undefined) {
+      where.availableForSale = req.query.availableForSale === 'true';
+    }
+    if (req.query.availableForLease !== undefined) {
+      where.availableForLease = req.query.availableForLease === 'true';
+    }
+    
+    // Optionally exclude numberPlate for public sale listings
+    const excludeNumberPlate = req.query.excludeNumberPlate === 'true';
+    const selectFields = excludeNumberPlate 
+      ? { ...carPublic, numberPlate: false }
+      : carPublic;
+    
+    const items = await prisma.car.findMany({ where, select: selectFields });
     res.json(items);
   } catch (e) { next(e); }
 };
@@ -59,7 +86,8 @@ export const createCar = async (req, res, next) => {
       vin, numberPlate,
       make, model, year, pricePerDay, cityId,
       seatCount = 5, fuelType, powerKW, engineCapacityL = null,
-      bodyType, gearbox, state = 'AVAILABLE', odometerKm = 0
+      bodyType, gearbox, state = 'AVAILABLE', odometerKm = 0,
+      availableForLease = true, availableForSale = false, salePrice = null, saleDescription = null, colour = null
     } = body;
 
     // required strings
@@ -96,6 +124,10 @@ export const createCar = async (req, res, next) => {
       if (engineL === null && engineCapacityL !== null) throw badRequest('engineCapacityL must be a number or null');
     }
 
+    // Validate sale fields
+    const salePriceNum = salePrice !== null ? asNum(salePrice) : null;
+    if (salePrice !== null && salePriceNum === null) throw badRequest('salePrice must be a number or null');
+
     const created = await prisma.car.create({
       data: {
         vin: vin.trim().toUpperCase(),
@@ -104,6 +136,10 @@ export const createCar = async (req, res, next) => {
         model: model.trim(),
         year: yearInt,
         pricePerDay: price,
+        availableForLease: availableForLease === true,
+        availableForSale: availableForSale === true,
+        salePrice: salePriceNum,
+        saleDescription: saleDescription ? String(saleDescription).trim() : null,
         cityId: cid,
         seatCount: seats,
         fuelType,
@@ -111,6 +147,7 @@ export const createCar = async (req, res, next) => {
         engineCapacityL: engineL,
         bodyType,
         gearbox,
+        colour: colour ? String(colour).trim() : null,
         state: state || 'AVAILABLE',
         odometerKm: odo
       },
@@ -159,6 +196,15 @@ export const updateCar = async (req, res, next) => {
     if (data.seatCount !== undefined)   { const s = asInt(data.seatCount);   if (s === null) throw badRequest('seatCount must be an integer');   data.seatCount = s; }
     if (data.powerKW !== undefined)     { const k = asInt(data.powerKW);     if (k === null) throw badRequest('powerKW must be an integer');     data.powerKW = k; }
     if (data.odometerKm !== undefined)  { const o = asInt(data.odometerKm);  if (o === null) throw badRequest('odometerKm must be an integer');  data.odometerKm = o; }
+    
+    // sale fields
+    if (data.salePrice !== undefined && data.salePrice !== null) {
+      const sp = asNum(data.salePrice);
+      if (sp === null) throw badRequest('salePrice must be a number or null');
+      data.salePrice = sp;
+    }
+    if (data.availableForLease !== undefined) data.availableForLease = data.availableForLease === true;
+    if (data.availableForSale !== undefined) data.availableForSale = data.availableForSale === true;
 
     // enums
     if (data.fuelType !== undefined && !FuelType.includes(data.fuelType))   throw badRequest(`fuelType must be one of: ${FuelType.join(', ')}`);
@@ -178,6 +224,8 @@ export const updateCar = async (req, res, next) => {
     if (data.numberPlate) data.numberPlate = data.numberPlate.trim().toUpperCase();
     if (data.make)        data.make        = data.make.trim();
     if (data.model)       data.model       = data.model.trim();
+    if (data.colour !== undefined) data.colour = data.colour ? String(data.colour).trim() : null;
+    if (data.saleDescription !== undefined) data.saleDescription = data.saleDescription ? String(data.saleDescription).trim() : null;
 
     const updated = await prisma.car.update({ where: { id }, data, select: carPublic });
     res.json(updated);
