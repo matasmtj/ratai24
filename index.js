@@ -20,7 +20,8 @@ import contactRoutes from './src/routes/contacts.routes.js';
 
 const app = express();
 app.use(cors());
-app.use(express.json());
+// DON'T use express.json() globally - it interferes with multer multipart parsing
+// app.use(express.json());
 app.use(morgan('dev'));
 
 // Ensure uploads directory exists (needed on Render)
@@ -36,12 +37,16 @@ try {
 // Serve static files from uploads directory
 app.use('/uploads', express.static('uploads'));
 
-// Routes
+// Routes - image routes MUST come before JSON parsing
+app.use(carImageRoutes); // Must be first - handles multipart/form-data
+
+// Now apply JSON parsing for other routes
+app.use(express.json());
+
 app.use(authRoutes);
 app.use(cityRoutes);
 app.use(carRoutes);
 app.use(contractRoutes);
-app.use(carImageRoutes);
 app.use(userRoutes);
 app.use(contactRoutes);
 app.use('/debug', debugRoutes);
