@@ -6,7 +6,8 @@ import { setCarFolder } from '../middlewares/car-folder.middleware.js';
 import { 
   uploadCarImages, 
   listCarImages, 
-  setMainImage, 
+  setMainImage,
+  reorderImages,
   deleteCarImage 
 } from '../controllers/car-images.controller.js';
 
@@ -20,6 +21,9 @@ r.get('/cars/:carId/images', listCarImages);
 
 // Set main image (ADMIN only)
 r.put('/cars/:carId/images/:imageId/main', requireAuth, requireRole('ADMIN'), setMainImage);
+
+// Reorder images (ADMIN only)
+r.put('/cars/:carId/images/reorder', requireAuth, requireRole('ADMIN'), reorderImages);
 
 // Delete image (ADMIN only)
 r.delete('/cars/:carId/images/:imageId', requireAuth, requireRole('ADMIN'), deleteCarImage);

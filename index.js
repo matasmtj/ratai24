@@ -15,8 +15,10 @@ import carRoutes from './src/routes/cars.routes.js';
 import contractRoutes from './src/routes/contracts.routes.js';
 import debugRoutes from './src/routes/debug.routes.js';
 import carImageRoutes from './src/routes/car-images.routes.js';
+import partImageRoutes from './src/routes/part-images.routes.js';
 import userRoutes from './src/routes/users.routes.js';
 import contactRoutes from './src/routes/contacts.routes.js';
+import partsRoutes from './src/parts/parts.routes.js';
 
 const app = express();
 app.use(cors());
@@ -39,6 +41,7 @@ app.use('/uploads', express.static('uploads'));
 
 // Routes - image routes MUST come before JSON parsing
 app.use(carImageRoutes); // Must be first - handles multipart/form-data
+app.use(partImageRoutes); // Must be first - handles multipart/form-data
 
 // Now apply JSON parsing for other routes
 app.use(express.json());
@@ -49,6 +52,7 @@ app.use(carRoutes);
 app.use(contractRoutes);
 app.use(userRoutes);
 app.use(contactRoutes);
+app.use(partsRoutes);
 app.use('/debug', debugRoutes);
 
 // Swagger (OpenAPI YAML)

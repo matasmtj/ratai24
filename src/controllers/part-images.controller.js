@@ -4,23 +4,23 @@ import { cloudinary } from '../middlewares/upload.middleware.js';
 
 const asInt = (v) => { const n = Number(v); return Number.isInteger(n) ? n : null; };
 
-// POST /cars/:carId/images - Upload image(s) for a car
-export const uploadCarImages = async (req, res, next) => {
+// POST /parts/:partId/images - Upload image(s) for a part
+export const uploadPartImages = async (req, res, next) => {
   try {
-    const carId = asInt(req.params.carId);
-    if (carId === null) throw badRequest('carId must be an integer');
+    const partId = asInt(req.params.partId);
+    if (partId === null) throw badRequest('partId must be an integer');
 
-    // Car already validated by setCarFolder middleware
-    const car = req.carInfo;
+    // Part already validated by setPartFolder middleware
+    const part = req.partInfo;
 
     // Check if files were uploaded
     if (!req.files || req.files.length === 0) {
       throw badRequest('No files uploaded. Please upload at least one image.');
     }
 
-    // Check if car already has a main image
-    const existingMain = await prisma.carImage.findFirst({
-      where: { carId, isMain: true }
+    // Check if part already has a main image
+    const existingMain = await prisma.partImage.findFirst({
+      where: { partId, isMain: true }
     });
 
     // Create database records for uploaded images
@@ -29,9 +29,9 @@ export const uploadCarImages = async (req, res, next) => {
         // First uploaded image becomes main if no main image exists
         const isMain = !existingMain && index === 0;
         
-        return prisma.carImage.create({
+        return prisma.partImage.create({
           data: {
-            carId,
+            partId,
             filename: file.filename,
             url: file.path, // Cloudinary URL
             isMain
@@ -50,18 +50,18 @@ export const uploadCarImages = async (req, res, next) => {
   }
 };
 
-// GET /cars/:carId/images - List all images for a car
-export const listCarImages = async (req, res, next) => {
+// GET /parts/:partId/images - List all images for a part
+export const listPartImages = async (req, res, next) => {
   try {
-    const carId = asInt(req.params.carId);
-    if (carId === null) throw badRequest('carId must be an integer');
+    const partId = asInt(req.params.partId);
+    if (partId === null) throw badRequest('partId must be an integer');
 
-    // Check if car exists
-    const car = await prisma.car.findUnique({ where: { id: carId } });
-    if (!car) throw notFound('Car not found');
+    // Check if part exists
+    const part = await prisma.part.findUnique({ where: { id: partId } });
+    if (!part) throw notFound('Part not found');
 
-    const images = await prisma.carImage.findMany({
-      where: { carId },
+    const images = await prisma.partImage.findMany({
+      where: { partId },
       orderBy: [
         { isMain: 'desc' }, // Main image first
         { createdAt: 'asc' }
@@ -74,29 +74,29 @@ export const listCarImages = async (req, res, next) => {
   }
 };
 
-// PUT /cars/:carId/images/:imageId/main - Set image as main
+// PUT /parts/:partId/images/:imageId/main - Set image as main
 export const setMainImage = async (req, res, next) => {
   try {
-    const carId = asInt(req.params.carId);
+    const partId = asInt(req.params.partId);
     const imageId = asInt(req.params.imageId);
     
-    if (carId === null) throw badRequest('carId must be an integer');
+    if (partId === null) throw badRequest('partId must be an integer');
     if (imageId === null) throw badRequest('imageId must be an integer');
 
-    // Check if image exists and belongs to this car
-    const image = await prisma.carImage.findUnique({ where: { id: imageId } });
+    // Check if image exists and belongs to this part
+    const image = await prisma.partImage.findUnique({ where: { id: imageId } });
     if (!image) throw notFound('Image not found');
-    if (image.carId !== carId) throw badRequest('Image does not belong to this car');
+    if (image.partId !== partId) throw badRequest('Image does not belong to this part');
 
     // Use transaction to ensure atomicity
     const [, updatedImage] = await prisma.$transaction([
-      // Remove isMain from all images of this car
-      prisma.carImage.updateMany({
-        where: { carId },
+      // Remove isMain from all images of this part
+      prisma.partImage.updateMany({
+        where: { partId },
         data: { isMain: false }
       }),
       // Set this image as main
-      prisma.carImage.update({
+      prisma.partImage.update({
         where: { id: imageId },
         data: { isMain: true }
       })
@@ -112,11 +112,11 @@ export const setMainImage = async (req, res, next) => {
   }
 };
 
-// PUT /cars/:carId/images/reorder - Reorder car images
+// PUT /parts/:partId/images/reorder - Reorder part images
 export const reorderImages = async (req, res, next) => {
   try {
-    const carId = asInt(req.params.carId);
-    if (carId === null) throw badRequest('carId must be an integer');
+    const partId = asInt(req.params.partId);
+    if (partId === null) throw badRequest('partId must be an integer');
 
     const { imageIds } = req.body;
 
@@ -131,16 +131,16 @@ export const reorderImages = async (req, res, next) => {
       throw badRequest('All imageIds must be integers');
     }
 
-    // Check if car exists
-    const car = await prisma.car.findUnique({ where: { id: carId } });
-    if (!car) throw notFound('Car not found');
+    // Check if part exists
+    const part = await prisma.part.findUnique({ where: { id: partId } });
+    if (!part) throw notFound('Part not found');
 
-    // Fetch all images for this car
-    const existingImages = await prisma.carImage.findMany({
-      where: { carId }
+    // Fetch all images for this part
+    const existingImages = await prisma.partImage.findMany({
+      where: { partId }
     });
 
-    // Verify all provided IDs belong to this car
+    // Verify all provided IDs belong to this part
     const existingIds = existingImages.map(img => img.id);
     const invalidIds = imageIds.filter(id => !existingIds.includes(id));
     
@@ -151,7 +151,7 @@ export const reorderImages = async (req, res, next) => {
     // Update order for each image using transactions
     await prisma.$transaction(
       imageIds.map((id, index) => 
-        prisma.carImage.update({
+        prisma.partImage.update({
           where: { id },
           data: { order: index }
         })
@@ -159,8 +159,8 @@ export const reorderImages = async (req, res, next) => {
     );
 
     // Fetch updated images
-    const updatedImages = await prisma.carImage.findMany({
-      where: { carId },
+    const updatedImages = await prisma.partImage.findMany({
+      where: { partId },
       orderBy: [
         { isMain: 'desc' },
         { order: 'asc' }
@@ -176,32 +176,32 @@ export const reorderImages = async (req, res, next) => {
   }
 };
 
-// DELETE /cars/:carId/images/:imageId - Delete an image
-export const deleteCarImage = async (req, res, next) => {
+// DELETE /parts/:partId/images/:imageId - Delete an image
+export const deletePartImage = async (req, res, next) => {
   try {
-    const carId = asInt(req.params.carId);
+    const partId = asInt(req.params.partId);
     const imageId = asInt(req.params.imageId);
     
-    if (carId === null) throw badRequest('carId must be an integer');
+    if (partId === null) throw badRequest('partId must be an integer');
     if (imageId === null) throw badRequest('imageId must be an integer');
 
-    // Check if image exists and belongs to this car
-    const image = await prisma.carImage.findUnique({ where: { id: imageId } });
+    // Check if image exists and belongs to this part
+    const image = await prisma.partImage.findUnique({ where: { id: imageId } });
     if (!image) throw notFound('Image not found');
-    if (image.carId !== carId) throw badRequest('Image does not belong to this car');
+    if (image.partId !== partId) throw badRequest('Image does not belong to this part');
 
     // If deleting main image, set another image as main
     if (image.isMain) {
-      const otherImage = await prisma.carImage.findFirst({
+      const otherImage = await prisma.partImage.findFirst({
         where: { 
-          carId,
+          partId,
           id: { not: imageId }
         },
         orderBy: { createdAt: 'asc' }
       });
 
       if (otherImage) {
-        await prisma.carImage.update({
+        await prisma.partImage.update({
           where: { id: otherImage.id },
           data: { isMain: true }
         });
@@ -209,7 +209,7 @@ export const deleteCarImage = async (req, res, next) => {
     }
 
     // Delete from database
-    await prisma.carImage.delete({ where: { id: imageId } });
+    await prisma.partImage.delete({ where: { id: imageId } });
 
     // Delete file from Cloudinary
     try {
