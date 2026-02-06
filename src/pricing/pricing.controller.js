@@ -3,6 +3,9 @@
  * Handles API requests for dynamic pricing
  */
 
+import { PrismaClient } from '@prisma/client';
+const prisma = new PrismaClient();
+
 import * as pricingService from './pricing.service.js';
 import { getCityDemandMetrics } from './calculators/demand.calculator.js';
 import { getCustomerLoyaltyInfo } from './calculators/customer.calculator.js';
@@ -84,13 +87,31 @@ export async function getPricePreview(req, res) {
       saveSnapshot: false, // Don't save previews
     });
 
-    // Simplified response for preview
+    // Get car pricing configuration
+    const car = await prisma.car.findUnique({
+      where: { id: parseInt(carId) },
+      select: {
+        basePricePerDay: true,
+        minPricePerDay: true,
+        maxPricePerDay: true,
+        useDynamicPricing: true,
+      },
+    });
+
+    // Enhanced response with pricing configuration
     res.json({
       carId: result.carId,
       pricePerDay: result.pricePerDay,
       totalPrice: result.totalPrice,
       duration: result.duration,
       isDynamic: result.isDynamic,
+      pricingConfig: {
+        basePricePerDay: car?.basePricePerDay,
+        minPricePerDay: car?.minPricePerDay,
+        maxPricePerDay: car?.maxPricePerDay,
+        useDynamicPricing: car?.useDynamicPricing,
+      },
+      breakdown: result.breakdown,
     });
   } catch (error) {
     console.error('Error in getPricePreview:', error);
