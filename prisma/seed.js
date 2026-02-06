@@ -331,13 +331,150 @@ async function main() {
     },
   });
 
-  console.log('Seeded:', {
+  // ========== DYNAMIC PRICING SYSTEM ==========
+  console.log('\n🎯 Initializing Dynamic Pricing System...');
+
+  // Update cars with pricing configuration
+  await prisma.car.update({
+    where: { id: car1.id },
+    data: {
+      basePricePerDay: 35,
+      minPricePerDay: 25,
+      maxPricePerDay: 60,
+      useDynamicPricing: true,
+      dailyOperatingCost: 5,
+      monthlyFinancingCost: 90,
+      purchasePrice: 15000,
+      maintenanceScore: 85,
+    },
+  });
+
+  await prisma.car.update({
+    where: { id: car2.id },
+    data: {
+      basePricePerDay: 95,
+      minPricePerDay: 70,
+      maxPricePerDay: 150,
+      useDynamicPricing: true,
+      dailyOperatingCost: 12,
+      monthlyFinancingCost: 750,
+      purchasePrice: 48000,
+      maintenanceScore: 95,
+    },
+  });
+
+  await prisma.car.update({
+    where: { id: car3.id },
+    data: {
+      basePricePerDay: 30,
+      minPricePerDay: 22,
+      maxPricePerDay: 50,
+      useDynamicPricing: true,
+      dailyOperatingCost: 4,
+      monthlyFinancingCost: 60,
+      purchasePrice: 12000,
+      maintenanceScore: 78,
+    },
+  });
+
+  // Seasonal Factors
+  const summerSeason = await prisma.seasonalFactor.upsert({
+    where: { id: 1 },
+    update: {},
+    create: {
+      name: 'Summer Peak Season',
+      startDate: new Date('2026-06-01'),
+      endDate: new Date('2026-08-31'),
+      multiplier: 1.3,
+      isActive: true,
+    },
+  });
+
+  const christmasSeason = await prisma.seasonalFactor.upsert({
+    where: { id: 2 },
+    update: {},
+    create: {
+      name: 'Christmas Holiday',
+      startDate: new Date('2026-12-20'),
+      endDate: new Date('2027-01-05'),
+      multiplier: 1.25,
+      isActive: true,
+    },
+  });
+
+  const easterSeason = await prisma.seasonalFactor.upsert({
+    where: { id: 3 },
+    update: {},
+    create: {
+      name: 'Easter Holiday',
+      startDate: new Date('2026-04-10'),
+      endDate: new Date('2026-04-20'),
+      multiplier: 1.2,
+      isActive: true,
+    },
+  });
+
+  // Sample Pricing Rule (March Promotion)
+  const marchPromo = await prisma.pricingRule.upsert({
+    where: { id: 1 },
+    update: {},
+    create: {
+      name: 'March Spring Promotion',
+      multiplier: 0.85,
+      startDate: new Date('2026-03-01'),
+      endDate: new Date('2026-03-31'),
+      priority: 5,
+      isActive: true,
+    },
+  });
+
+  // Initialize city demand metrics
+  await prisma.cityDemandMetrics.upsert({
+    where: { cityId: vilnius.id },
+    update: {},
+    create: {
+      cityId: vilnius.id,
+      totalCars: 3,
+      availableCars: 2,
+      activeContracts: 1,
+      utilizationRate: 0.33,
+      demandScore: 0.65,
+      avgUtilization30d: 0.42,
+      avgUtilization90d: 0.38,
+      avgPriceMultiplier: 1.05,
+    },
+  });
+
+  await prisma.cityDemandMetrics.upsert({
+    where: { cityId: kaunas.id },
+    update: {},
+    create: {
+      cityId: kaunas.id,
+      totalCars: 1,
+      availableCars: 1,
+      activeContracts: 0,
+      utilizationRate: 0,
+      demandScore: 0.6,
+      avgUtilization30d: 0.15,
+      avgUtilization90d: 0.18,
+      avgPriceMultiplier: 0.95,
+    },
+  });
+
+  console.log('✅ Dynamic Pricing System initialized');
+  console.log('  - Cars configured: 3');
+  console.log('  - Seasonal factors: 3');
+  console.log('  - Pricing rules: 1');
+  console.log('  - City demand metrics: 2');
+
+  console.log('\n📊 Seeded:', {
     admin: admin.email,
     user: user.email,
     cities: [vilnius.name, kaunas.name],
     cars: [car1.vin, car2.vin, car3.vin, car4.vin],
     carsForSale: [car2.make + ' ' + car2.model, car4.make + ' ' + car4.model],
     parts: [part1.partName, part2.partName, part3.partName, part4.partName, part5.partName],
+    dynamicPricing: 'enabled',
   });
 }
 

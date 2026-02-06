@@ -13,6 +13,10 @@ model City {
   country                String
   cars                   Car[]
   contactOperationAreas  ContactOperationArea[]
+  demandMetrics          CityDemandMetrics?
+  pricingSnapshots       PricingSnapshot[]
+  seasonalFactors        SeasonalFactor[]
+  pricingRules           PricingRule[]
   createdAt              DateTime                @default(now())
   updatedAt              DateTime                @updatedAt
 }
@@ -24,16 +28,40 @@ model Car {
   make              String
   model             String
   year              Int
-  pricePerDay       Float
+  pricePerDay       Float                                   // Legacy fixed price (fallback)
   // Sale-related fields
   availableForLease Boolean    @default(true)
   availableForSale  Boolean    @default(false)
   salePrice         Decimal?   @db.Decimal(10, 2)
   saleDescription   String?    @db.Text                    // Description/comment for sale listing
+  
+  // Dynamic Pricing Configuration
+  useDynamicPricing     Boolean   @default(true)
+  basePricePerDay       Float?                              // Calculated base cost
+  minPricePerDay        Float?                              // Floor price (never go below)
+  maxPricePerDay        Float?                              // Ceiling price (never exceed)
+  
+  // Cost structure for pricing calculation
+  dailyOperatingCost    Float?                              // Insurance + maintenance + parking per day
+  monthlyFinancingCost  Float?                              // Loan/lease payment per month
+  purchasePrice         Float?                              // Original purchase price (for depreciation)
+  
+  // Performance tracking
+  utilizationRate       Float?    @default(0)               // Cached value, updated daily
+  averageRevenuePerDay  Float?                              // Rolling average
+  lastUtilizationUpdate DateTime?
+  
+  // Maintenance status affects pricing
+  lastMaintenanceDate   DateTime?
+  nextMaintenanceKm     Int?
+  maintenanceScore      Float?    @default(100)             // 0-100, affects price
+  
   cityId            Int
   city              City       @relation(fields: [cityId], references: [id], onDelete: Cascade)
   contracts         Contract[]
   images            CarImage[]
+  pricingSnapshots  PricingSnapshot[]
+  pricingRules      PricingRule[]
   seatCount         Int        @default(5)
   fuelType          FuelType
   powerKW           Int
@@ -74,6 +102,18 @@ model Contract {
   state             ContractState @default(ACTIVE)
   mileageStartKm    Int
   mileageEndKm      Int?
+  
+  // Pricing breakdown (for analysis)
+  basePrice           Float?
+  dynamicPrice        Float?                                // What algorithm calculated
+  finalPrice          Float?                                // What customer actually paid
+  appliedDiscount     Float?    @default(0)
+  demandMultiplier    Float?
+  seasonalMultiplier  Float?
+  durationDiscount    Float?
+  
+  pricingSnapshotId   Int?
+  pricingSnapshot     PricingSnapshot? @relation(fields: [pricingSnapshotId], references: [id])
   fuelLevelStartPct Int
   fuelLevelEndPct   Int?
   extraFees         Float         @default(0)
@@ -216,4 +256,101 @@ enum PartCondition {
   NEW
   USED
   REFURBISHED
+}
+
+// Dynamic Pricing Models
+
+model PricingSnapshot {
+  id                    Int        @id @default(autoincrement())
+  carId                 Int
+  car                   Car        @relation(fields: [carId], references: [id], onDelete: Cascade)
+  cityId                Int
+  city                  City       @relation(fields: [cityId], references: [id])
+  
+  // Snapshot data
+  calculatedPrice       Float
+  basePrice             Float
+  demandMultiplier      Float
+  seasonalMultiplier    Float
+  utilizationMultiplier Float
+  durationMultiplier    Float
+  customerMultiplier    Float      @default(1.0)
+  finalPrice            Float
+  
+  // Context
+  availableCars         Int                                 // How many cars were available
+  activeContracts       Int                                 // How many were rented
+  requestDate           DateTime
+  startDate             DateTime
+  duration              Int
+  
+  contracts             Contract[]
+  createdAt             DateTime   @default(now())
+  
+  @@index([carId, createdAt])
+  @@index([cityId, createdAt])
+}
+
+model CityDemandMetrics {
+  id                  Int      @id @default(autoincrement())
+  cityId              Int      @unique
+  city                City     @relation(fields: [cityId], references: [id], onDelete: Cascade)
+  
+  // Current metrics (updated every 15 min)
+  totalCars           Int
+  availableCars       Int
+  activeContracts     Int
+  utilizationRate     Float                                 // % of fleet in use
+  demandScore         Float                                 // 0.6 - 2.5
+  
+  // Historical averages (updated daily)
+  avgUtilization30d   Float?
+  avgUtilization90d   Float?
+  avgPriceMultiplier  Float?
+  
+  lastCalculated      DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+  
+  @@index([lastCalculated])
+}
+
+model SeasonalFactor {
+  id          Int      @id @default(autoincrement())
+  name        String                                        // "Summer Peak", "Christmas Holiday"
+  startDate   DateTime                                      // June 1
+  endDate     DateTime                                      // August 31
+  multiplier  Float                                         // 1.3 for 30% increase
+  cityId      Int?                                          // Optional: specific to city
+  city        City?    @relation(fields: [cityId], references: [id])
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  
+  @@index([startDate, endDate, isActive])
+}
+
+model PricingRule {
+  id          Int      @id @default(autoincrement())
+  name        String
+  description String?
+  
+  // Conditions
+  carId       Int?                                          // Specific car, or null for all
+  car         Car?     @relation(fields: [carId], references: [id], onDelete: Cascade)
+  cityId      Int?                                          // Specific city, or null for all
+  city        City?    @relation(fields: [cityId], references: [id])
+  startDate   DateTime?
+  endDate     DateTime?
+  
+  // Adjustments
+  fixedPrice      Float?                                    // Override with fixed price
+  multiplier      Float?                                    // Apply multiplier (e.g., 0.8 for 20% off)
+  minPrice        Float?                                    // Override minimum
+  maxPrice        Float?                                    // Override maximum
+  
+  priority    Int      @default(0)                          // Higher priority = applied first
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  
+  @@index([startDate, endDate, isActive])
+  @@index([priority])
 }

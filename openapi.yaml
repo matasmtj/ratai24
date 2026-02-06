@@ -22,6 +22,10 @@ tags:
   - name: Parts
   - name: Contacts
   - name: Contracts
+  - name: Pricing
+    description: Dynamic pricing calculations (public endpoints)
+  - name: Admin - Pricing
+    description: Pricing management and analytics (admin only)
 
 components:
   securitySchemes:
@@ -1906,3 +1910,406 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
+
+  # ========== PRICING ==========
+  /api/pricing/calculate:
+    post:
+      tags: [Pricing]
+      summary: Calculate dynamic price for a car rental
+      description: Returns the optimized price based on demand, seasonality, duration, and other factors
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [carId, startDate, endDate, pickupCityId, dropoffCityId]
+              properties:
+                carId: { type: integer, example: 1 }
+                startDate: { type: string, format: date, example: "2026-03-10" }
+                endDate: { type: string, format: date, example: "2026-03-17" }
+                pickupCityId: { type: integer, example: 1 }
+                dropoffCityId: { type: integer, example: 1 }
+                userId: { type: integer, description: "Optional - for loyalty pricing", example: 2 }
+            example:
+              carId: 1
+              startDate: "2026-03-10"
+              endDate: "2026-03-17"
+              pickupCityId: 1
+              dropoffCityId: 1
+      responses:
+        '200':
+          description: Price calculated successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  carId: { type: integer }
+                  cityId: { type: integer }
+                  cityName: { type: string }
+                  basePrice: { type: number }
+                  pricePerDay: { type: number }
+                  totalPrice: { type: number }
+                  duration: { type: integer }
+                  startDate: { type: string, format: date-time }
+                  endDate: { type: string, format: date-time }
+                  breakdown: { type: object }
+                  isDynamic: { type: boolean }
+                  calculatedAt: { type: string, format: date-time }
+
+  /api/pricing/preview/{carId}:
+    get:
+      tags: [Pricing]
+      summary: Get pricing preview for a car
+      parameters:
+        - name: carId
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        '200':
+          description: Pricing preview
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  carId: { type: integer }
+                  basePricePerDay: { type: number }
+                  minPricePerDay: { type: number }
+                  maxPricePerDay: { type: number }
+                  useDynamicPricing: { type: boolean }
+
+  /api/pricing/bulk-calculate:
+    post:
+      tags: [Pricing]
+      summary: Calculate prices for multiple cars at once
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [carIds, startDate, endDate, pickupCityId, dropoffCityId]
+              properties:
+                carIds: { type: array, items: { type: integer }, example: [1, 2, 3] }
+                startDate: { type: string, format: date, example: "2026-06-15" }
+                endDate: { type: string, format: date, example: "2026-06-22" }
+                pickupCityId: { type: integer, example: 1 }
+                dropoffCityId: { type: integer, example: 1 }
+            example:
+              carIds: [1, 2, 3]
+              startDate: "2026-06-15"
+              endDate: "2026-06-22"
+              pickupCityId: 1
+              dropoffCityId: 1
+      responses:
+        '200':
+          description: Prices calculated
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+
+  /api/pricing/demand/{cityId}:
+    get:
+      tags: [Pricing]
+      summary: Get demand metrics for a city
+      parameters:
+        - name: cityId
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        '200':
+          description: City demand data
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  cityId: { type: integer }
+                  totalCars: { type: integer }
+                  availableCars: { type: integer }
+                  activeContracts: { type: integer }
+                  utilizationRate: { type: number }
+                  demandScore: { type: number }
+
+  /api/pricing/loyalty:
+    get:
+      tags: [Pricing]
+      summary: Get customer loyalty discount tier
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Loyalty information
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  userId: { type: integer }
+                  tier: { type: string }
+                  discount: { type: number }
+                  completedContracts: { type: integer }
+
+  # ========== ADMIN PRICING ==========
+  /api/admin/pricing/analytics:
+    get:
+      tags: [Admin - Pricing]
+      summary: Get pricing analytics and revenue insights
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Analytics data
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  totalRevenue: { type: number }
+                  avgPricePerDay: { type: number }
+                  totalContracts: { type: integer }
+        '401':
+          description: Unauthorized
+        '403':
+          description: Forbidden - ADMIN only
+
+  /api/admin/pricing/performance:
+    get:
+      tags: [Admin - Pricing]
+      summary: Get car performance metrics
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Performance data
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    carId: { type: integer }
+                    utilizationRate: { type: number }
+                    avgPriceMultiplier: { type: number }
+                    totalContracts: { type: integer }
+        '401':
+          description: Unauthorized
+        '403':
+          description: Forbidden - ADMIN only
+
+  /api/admin/pricing/cars/{id}/config:
+    put:
+      tags: [Admin - Pricing]
+      summary: Update car pricing configuration
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                basePricePerDay: { type: number, example: 45.0 }
+                minPricePerDay: { type: number, example: 30.0 }
+                maxPricePerDay: { type: number, example: 85.0 }
+                useDynamicPricing: { type: boolean, example: true }
+                dailyOperatingCost: { type: number, example: 5.0 }
+                maintenanceCostPerKm: { type: number, example: 0.15 }
+            example:
+              basePricePerDay: 45.0
+              minPricePerDay: 30.0
+              maxPricePerDay: 85.0
+              useDynamicPricing: true
+              dailyOperatingCost: 5.0
+              maintenanceCostPerKm: 0.15
+      responses:
+        '200':
+          description: Configuration updated
+        '401':
+          description: Unauthorized
+        '403':
+          description: Forbidden - ADMIN only
+
+  /api/admin/pricing/rules:
+    get:
+      tags: [Admin - Pricing]
+      summary: List all pricing rules
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Pricing rules list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+        '401':
+          description: Unauthorized
+        '403':
+          description: Forbidden - ADMIN only
+    post:
+      tags: [Admin - Pricing]
+      summary: Create a new pricing rule
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name, multiplier]
+              properties:
+                name: { type: string, example: "Weekend Special" }
+                carId: { type: integer, description: "Optional - apply to specific car", example: 1 }
+                cityId: { type: integer, description: "Optional - apply to specific city", example: 1 }
+                multiplier: { type: number, example: 0.9 }
+                startDate: { type: string, format: date, example: "2026-03-01" }
+                endDate: { type: string, format: date, example: "2026-03-31" }
+                priority: { type: integer, default: 0, example: 5 }
+                isActive: { type: boolean, default: true, example: true }
+            example:
+              name: "March Promotion"
+              multiplier: 0.85
+              startDate: "2026-03-01"
+              endDate: "2026-03-31"
+              priority: 5
+              isActive: true
+      responses:
+        '201':
+          description: Rule created
+        '401':
+          description: Unauthorized
+        '403':
+          description: Forbidden - ADMIN only
+
+  /api/admin/pricing/rules/{id}:
+    put:
+      tags: [Admin - Pricing]
+      summary: Update a pricing rule
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '200':
+          description: Rule updated
+        '401':
+          description: Unauthorized
+        '403':
+          description: Forbidden - ADMIN only
+    delete:
+      tags: [Admin - Pricing]
+      summary: Delete a pricing rule
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        '200':
+          description: Rule deleted
+        '401':
+          description: Unauthorized
+        '403':
+          description: Forbidden - ADMIN only
+
+  /api/admin/pricing/seasonal-factors:
+    get:
+      tags: [Admin - Pricing]
+      summary: List all seasonal pricing factors
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Seasonal factors list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+        '401':
+          description: Unauthorized
+        '403':
+          description: Forbidden - ADMIN only
+    post:
+      tags: [Admin - Pricing]
+      summary: Create a seasonal pricing factor
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name, startDate, endDate, multiplier]
+              properties:
+                name: { type: string, example: "Summer Peak Season" }
+                startDate: { type: string, format: date, example: "2026-06-01" }
+                endDate: { type: string, format: date, example: "2026-08-31" }
+                multiplier: { type: number, example: 1.3 }
+                isActive: { type: boolean, default: true, example: true }
+            example:
+              name: "Summer Peak Season"
+              startDate: "2026-06-01"
+              endDate: "2026-08-31"
+              multiplier: 1.3
+              isActive: true
+      responses:
+        '201':
+          description: Seasonal factor created
+        '401':
+          description: Unauthorized
+        '403':
+          description: Forbidden - ADMIN only
+
+  /api/admin/pricing/refresh:
+    post:
+      tags: [Admin - Pricing]
+      summary: Manually trigger pricing data refresh
+      description: Recalculates demand metrics and utilization data for all cities and cars
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Refresh completed
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message: { type: string }
+                  citiesUpdated: { type: integer }
+                  carsUpdated: { type: integer }
+        '401':
+          description: Unauthorized
+        '403':
+          description: Forbidden - ADMIN only

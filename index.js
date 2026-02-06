@@ -19,6 +19,8 @@ import partImageRoutes from './src/routes/part-images.routes.js';
 import userRoutes from './src/routes/users.routes.js';
 import contactRoutes from './src/routes/contacts.routes.js';
 import partsRoutes from './src/parts/parts.routes.js';
+import pricingRoutes from './src/pricing/pricing.routes.js';
+import adminPricingRoutes from './src/pricing/admin.pricing.routes.js';
 
 const app = express();
 app.use(cors());
@@ -53,6 +55,8 @@ app.use(contractRoutes);
 app.use(userRoutes);
 app.use(contactRoutes);
 app.use(partsRoutes);
+app.use(pricingRoutes);
+app.use(adminPricingRoutes);
 app.use('/debug', debugRoutes);
 
 // Swagger (OpenAPI YAML)
