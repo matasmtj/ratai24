@@ -21,7 +21,72 @@ export async function getPricingAnalytics(req, res) {
     const start = startDate ? new Date(startDate) : new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
     const end = endDate ? new Date(endDate) : new Date();
 
-    // Get pricing snapshots for the period
+    // ========== ACTUAL REVENUE from completed contracts ==========
+    const contracts = await prisma.contract.findMany({
+      where: {
+        state: 'COMPLETED',
+        endDate: { gte: start, lte: end },
+        ...(cityId && {
+          car: {
+            cityId: parseInt(cityId),
+          },
+        }),
+      },
+      include: {
+        car: {
+          select: {
+            make: true,
+            model: true,
+            year: true,
+            cityId: true,
+            city: {
+              select: {
+                name: true,
+              },
+            },
+          },
+        },
+      },
+      orderBy: {
+        endDate: 'desc',
+      },
+    });
+
+    // Calculate revenue metrics
+    const totalRevenue = contracts.reduce((sum, c) => sum + c.totalPrice, 0);
+    const totalContracts = contracts.length;
+    const avgRevenuePerContract = totalContracts > 0 ? totalRevenue / totalContracts : 0;
+
+    // Calculate average price per day
+    let totalDays = 0;
+    contracts.forEach(c => {
+      const days = Math.ceil((new Date(c.endDate) - new Date(c.startDate)) / (1000 * 60 * 60 * 24));
+      totalDays += days;
+    });
+    const avgPricePerDay = totalDays > 0 ? totalRevenue / totalDays : 0;
+
+    // Contracts with dynamic pricing breakdown
+    const contractsWithPricing = contracts.filter(c => c.dynamicPrice !== null);
+    const dynamicPricingUsage = totalContracts > 0
+      ? (contractsWithPricing.length / totalContracts) * 100
+      : 0;
+
+    // Calculate pricing impact (dynamic vs base)
+    let totalBaseRevenue = 0;
+    let totalDynamicRevenue = 0;
+    contractsWithPricing.forEach(c => {
+      if (c.basePrice && c.dynamicPrice) {
+        const days = Math.ceil((new Date(c.endDate) - new Date(c.startDate)) / (1000 * 60 * 60 * 24));
+        totalBaseRevenue += c.basePrice * days;
+        totalDynamicRevenue += c.dynamicPrice * days;
+      }
+    });
+
+    const pricingImpact = totalBaseRevenue > 0
+      ? ((totalDynamicRevenue - totalBaseRevenue) / totalBaseRevenue) * 100
+      : 0;
+
+    // ========== PRICING SNAPSHOTS (for pricing algorithm insights) ==========
     const snapshots = await prisma.pricingSnapshot.findMany({
       where: {
         createdAt: { gte: start, lte: end },
@@ -44,39 +109,181 @@ export async function getPricingAnalytics(req, res) {
       orderBy: {
         createdAt: 'desc',
       },
-      take: 1000, // Limit to recent 1000
+      take: 100,
     });
 
-    // Calculate statistics
-    const avgBasePrice = snapshots.length > 0
-      ? snapshots.reduce((sum, s) => sum + s.basePrice, 0) / snapshots.length
-      : 0;
-
-    const avgFinalPrice = snapshots.length > 0
-      ? snapshots.reduce((sum, s) => sum + s.finalPrice, 0) / snapshots.length
-      : 0;
-
+    // Snapshot statistics (algorithm performance)
     const avgDemandMultiplier = snapshots.length > 0
       ? snapshots.reduce((sum, s) => sum + s.demandMultiplier, 0) / snapshots.length
       : 1.0;
 
+    const avgSeasonalMultiplier = snapshots.length > 0
+      ? snapshots.reduce((sum, s) => sum + s.seasonalMultiplier, 0) / snapshots.length
+      : 1.0;
+
     res.json({
       period: { start, end },
-      totalSnapshots: snapshots.length,
-      statistics: {
-        avgBasePrice: Math.round(avgBasePrice * 100) / 100,
-        avgFinalPrice: Math.round(avgFinalPrice * 100) / 100,
-        avgDemandMultiplier: Math.round(avgDemandMultiplier * 100) / 100,
-        avgPriceIncrease: avgBasePrice > 0
-          ? Math.round(((avgFinalPrice - avgBasePrice) / avgBasePrice) * 100 * 100) / 100
-          : 0,
+      
+      // Real revenue metrics
+      revenue: {
+        total: Math.round(totalRevenue * 100) / 100,
+        totalContracts,
+        avgPerContract: Math.round(avgRevenuePerContract * 100) / 100,
+        avgPricePerDay: Math.round(avgPricePerDay * 100) / 100,
       },
-      recentSnapshots: snapshots.slice(0, 50), // Return 50 most recent
+
+      // Dynamic pricing performance
+      pricingPerformance: {
+        dynamicPricingUsage: Math.round(dynamicPricingUsage * 100) / 100,
+        contractsWithPricing: contractsWithPricing.length,
+        revenueImpact: Math.round(pricingImpact * 100) / 100, // % change vs base price
+        avgDemandMultiplier: Math.round(avgDemandMultiplier * 100) / 100,
+        avgSeasonalMultiplier: Math.round(avgSeasonalMultiplier * 100) / 100,
+      },
+
+      // Recent activity
+      recentContracts: contracts.slice(0, 10).map(c => ({
+        id: c.id,
+        car: `${c.car.make} ${c.car.model}`,
+        city: c.car.city.name,
+        totalPrice: c.totalPrice,
+        basePrice: c.basePrice,
+        dynamicPrice: c.dynamicPrice,
+        startDate: c.startDate,
+        endDate: c.endDate,
+      })),
+
+      // Pricing algorithm insights
+      pricingInsights: {
+        totalCalculations: snapshots.length,
+        recentCalculations: snapshots.slice(0, 20),
+      },
     });
   } catch (error) {
     console.error('Error in getPricingAnalytics:', error);
     res.status(500).json({
       error: 'Failed to get pricing analytics',
+    });
+  }
+}
+
+/**
+ * Get revenue analytics (focused on actual money earned)
+ * GET /api/admin/pricing/revenue
+ */
+export async function getRevenueAnalytics(req, res) {
+  try {
+    const { startDate, endDate, cityId, groupBy } = req.query;
+
+    const start = startDate ? new Date(startDate) : new Date(Date.now() - 90 * 24 * 60 * 60 * 1000); // 90 days default
+    const end = endDate ? new Date(endDate) : new Date();
+
+    // Get all contracts (not just completed, to show pipeline)
+    const allContracts = await prisma.contract.findMany({
+      where: {
+        // Filter by when the rental ended (completed in this period)
+        endDate: { gte: start, lte: end },
+        ...(cityId && {
+          car: {
+            cityId: parseInt(cityId),
+          },
+        }),
+      },
+      include: {
+        car: {
+          select: {
+            make: true,
+            model: true,
+            cityId: true,
+            city: {
+              select: {
+                name: true,
+              },
+            },
+          },
+        },
+      },
+      orderBy: {
+        endDate: 'desc',
+      },
+    });
+
+    // Break down by state
+    const completed = allContracts.filter(c => c.state === 'COMPLETED');
+    const active = allContracts.filter(c => c.state === 'ACTIVE');
+    const cancelled = allContracts.filter(c => c.state === 'CANCELLED');
+
+    // Revenue calculations
+    const totalRevenue = completed.reduce((sum, c) => sum + c.totalPrice, 0);
+    const pendingRevenue = active.reduce((sum, c) => sum + c.totalPrice, 0);
+    const lostRevenue = cancelled.reduce((sum, c) => sum + c.totalPrice, 0);
+
+    // Group by city if requested
+    let revenueByCity = null;
+    if (groupBy === 'city') {
+      const cityRevenue = {};
+      completed.forEach(c => {
+        const cityName = c.car.city.name;
+        if (!cityRevenue[cityName]) {
+          cityRevenue[cityName] = {
+            revenue: 0,
+            contracts: 0,
+            avgRevenue: 0,
+          };
+        }
+        cityRevenue[cityName].revenue += c.totalPrice;
+        cityRevenue[cityName].contracts += 1;
+      });
+
+      // Calculate averages
+      Object.keys(cityRevenue).forEach(city => {
+        cityRevenue[city].avgRevenue = cityRevenue[city].contracts > 0
+          ? cityRevenue[city].revenue / cityRevenue[city].contracts
+          : 0;
+      });
+
+      revenueByCity = cityRevenue;
+    }
+
+    // Top earning cars
+    const carRevenue = {};
+    completed.forEach(c => {
+      const carKey = `${c.car.make} ${c.car.model} (ID: ${c.carId})`;
+      if (!carRevenue[carKey]) {
+        carRevenue[carKey] = {
+          revenue: 0,
+          contracts: 0,
+        };
+      }
+      carRevenue[carKey].revenue += c.totalPrice;
+      carRevenue[carKey].contracts += 1;
+    });
+
+    const topCars = Object.entries(carRevenue)
+      .map(([car, data]) => ({ car, ...data }))
+      .sort((a, b) => b.revenue - a.revenue)
+      .slice(0, 10);
+
+    res.json({
+      period: { start, end },
+      summary: {
+        totalRevenue: Math.round(totalRevenue * 100) / 100,
+        pendingRevenue: Math.round(pendingRevenue * 100) / 100,
+        lostRevenue: Math.round(lostRevenue * 100) / 100,
+        completedContracts: completed.length,
+        activeContracts: active.length,
+        cancelledContracts: cancelled.length,
+        avgRevenuePerContract: completed.length > 0
+          ? Math.round((totalRevenue / completed.length) * 100) / 100
+          : 0,
+      },
+      topCars,
+      ...(revenueByCity && { revenueByCity }),
+    });
+  } catch (error) {
+    console.error('Error in getRevenueAnalytics:', error);
+    res.status(500).json({
+      error: 'Failed to get revenue analytics',
     });
   }
 }

@@ -115,13 +115,55 @@ Response: {
 GET /api/admin/pricing/analytics?startDate=...&endDate=...&cityId=...
 
 Response: {
-  totalSnapshots: number,
-  statistics: {
-    avgBasePrice: number,
-    avgFinalPrice: number,
-    avgDemandMultiplier: number
+  period: { start, end },
+  revenue: {
+    total: number,          // €100 - Actual earned revenue
+    totalContracts: number, // 3 - Completed bookings
+    avgPerContract: number, // €33.33
+    avgPricePerDay: number
   },
-  recentSnapshots: [...]
+  pricingPerformance: {
+    dynamicPricingUsage: number, // % of contracts using dynamic pricing
+    contractsWithPricing: number,
+    revenueImpact: number,       // % revenue change from dynamic pricing
+    avgDemandMultiplier: number,
+    avgSeasonalMultiplier: number
+  },
+  recentContracts: [...],        // Last 10 contracts with pricing data
+  pricingInsights: {
+    totalCalculations: number,   // Number of price calculations
+    recentCalculations: [...]   // Price calculation history
+  }
+}
+```
+
+#### Get Revenue Analytics
+```
+GET /api/admin/pricing/revenue?startDate=...&endDate=...&cityId=...&groupBy=city
+
+Response: {
+  period: { start, end },
+  summary: {
+    totalRevenue: number,         // €100 - Completed contracts
+    pendingRevenue: number,       // €500 - Active contracts
+    lostRevenue: number,          // €0 - Cancelled contracts
+    completedContracts: number,
+    activeContracts: number,
+    cancelledContracts: number,
+    avgRevenuePerContract: number
+  },
+  topCars: [{
+    car: string,
+    revenue: number,
+    contracts: number
+  }],
+  revenueByCity: {              // Only if groupBy=city
+    "Vilnius": {
+      revenue: number,
+      contracts: number,
+      avgRevenue: number
+    }
+  }
 }
 ```
 

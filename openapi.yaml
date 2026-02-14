@@ -2062,19 +2062,98 @@ paths:
     get:
       tags: [Admin - Pricing]
       summary: Get pricing analytics and revenue insights
+      description: Returns both actual revenue from completed contracts and pricing algorithm performance metrics
       security:
         - bearerAuth: []
+      parameters:
+        - name: startDate
+          in: query
+          schema: { type: string, format: date }
+          description: Start date for analytics period (default: 30 days ago)
+        - name: endDate
+          in: query
+          schema: { type: string, format: date }
+          description: End date for analytics period (default: now)
+        - name: cityId
+          in: query
+          schema: { type: integer }
+          description: Optional - filter by city
       responses:
         '200':
-          description: Analytics data
+          description: Analytics data with revenue and pricing metrics
           content:
             application/json:
               schema:
                 type: object
                 properties:
-                  totalRevenue: { type: number }
-                  avgPricePerDay: { type: number }
-                  totalContracts: { type: integer }
+                  revenue:
+                    type: object
+                    properties:
+                      total: { type: number, example: 1250.50 }
+                      totalContracts: { type: integer, example: 15 }
+                      avgPerContract: { type: number, example: 83.37 }
+                      avgPricePerDay: { type: number, example: 45.25 }
+                  pricingPerformance:
+                    type: object
+                    properties:
+                      dynamicPricingUsage: { type: number, example: 85.5 }
+                      revenueImpact: { type: number, example: 12.3 }
+                      avgDemandMultiplier: { type: number, example: 1.15 }
+                      avgSeasonalMultiplier: { type: number, example: 1.05 }
+        '401':
+          description: Unauthorized
+        '403':
+          description: Forbidden - ADMIN only
+
+  /api/admin/pricing/revenue:
+    get:
+      tags: [Admin - Pricing]
+      summary: Get detailed revenue breakdown
+      description: Focused revenue analytics showing completed, pending, and lost revenue with city/car breakdowns
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: startDate
+          in: query
+          schema: { type: string, format: date }
+          description: Start date (default: 90 days ago)
+        - name: endDate
+          in: query
+          schema: { type: string, format: date }
+          description: End date (default: now)
+        - name: cityId
+          in: query
+          schema: { type: integer }
+          description: Optional - filter by city
+        - name: groupBy
+          in: query
+          schema: { type: string, enum: [city] }
+          description: Group results by city
+      responses:
+        '200':
+          description: Revenue breakdown
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  summary:
+                    type: object
+                    properties:
+                      totalRevenue: { type: number, example: 1250.50 }
+                      pendingRevenue: { type: number, example: 850.00 }
+                      lostRevenue: { type: number, example: 120.00 }
+                      completedContracts: { type: integer, example: 15 }
+                      activeContracts: { type: integer, example: 8 }
+                      cancelledContracts: { type: integer, example: 2 }
+                  topCars:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        car: { type: string }
+                        revenue: { type: number }
+                        contracts: { type: integer }
         '401':
           description: Unauthorized
         '403':

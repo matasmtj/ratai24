@@ -15,6 +15,7 @@ const adminAuth = [requireAuth, requireRole('ADMIN')];
 
 // Analytics
 router.get('/api/admin/pricing/analytics', adminAuth, adminPricingController.getPricingAnalytics);
+router.get('/api/admin/pricing/revenue', adminAuth, adminPricingController.getRevenueAnalytics);
 router.get('/api/admin/pricing/performance', adminAuth, adminPricingController.getCarPerformance);
 
 // Car pricing configuration
