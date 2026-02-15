@@ -20,6 +20,7 @@ const carPublic = {
   numberPlate: true,
   make: true, model: true, year: true, pricePerDay: true, cityId: true,
   availableForLease: true, availableForSale: true, salePrice: true, saleDescription: true, colour: true,
+  useDynamicPricing: true,
   seatCount: true, fuelType: true, powerKW: true, engineCapacityL: true,
   bodyType: true, gearbox: true, state: true, odometerKm: true,
   images: {
@@ -120,7 +121,8 @@ export const createCar = async (req, res, next) => {
       make, model, year, pricePerDay, cityId,
       seatCount = 5, fuelType, powerKW, engineCapacityL = null,
       bodyType, gearbox, state = 'AVAILABLE', odometerKm = 0,
-      availableForLease = true, availableForSale = false, salePrice = null, saleDescription = null, colour = null
+      availableForLease = true, availableForSale = false, salePrice = null, saleDescription = null, colour = null,
+      useDynamicPricing = false
     } = body;
 
     // required strings
@@ -185,6 +187,7 @@ export const createCar = async (req, res, next) => {
         pricePerDay: price,
         availableForLease: availableForLease === true,
         availableForSale: availableForSale === true,
+        useDynamicPricing: useDynamicPricing === true,
         salePrice: salePriceNum,
         saleDescription: saleDescription ? String(saleDescription).trim() : null,
         colour: colour ? String(colour).trim() : null,
@@ -274,6 +277,7 @@ export const updateCar = async (req, res, next) => {
     }
     if (data.availableForLease !== undefined) data.availableForLease = data.availableForLease === true;
     if (data.availableForSale !== undefined) data.availableForSale = data.availableForSale === true;
+    if (data.useDynamicPricing !== undefined) data.useDynamicPricing = data.useDynamicPricing === true;
 
     // enums
     if (data.fuelType !== undefined && !FuelType.includes(data.fuelType))   throw badRequest(`fuelType must be one of: ${FuelType.join(', ')}`);
