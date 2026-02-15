@@ -21,6 +21,9 @@ const carPublic = {
   make: true, model: true, year: true, pricePerDay: true, cityId: true,
   availableForLease: true, availableForSale: true, salePrice: true, saleDescription: true, colour: true,
   useDynamicPricing: true,
+  basePricePerDay: true,
+  minPricePerDay: true,
+  maxPricePerDay: true,
   seatCount: true, fuelType: true, powerKW: true, engineCapacityL: true,
   bodyType: true, gearbox: true, state: true, odometerKm: true,
   images: {

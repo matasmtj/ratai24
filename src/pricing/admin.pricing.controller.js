@@ -65,11 +65,28 @@ export async function getPricingAnalytics(req, res) {
     });
     const avgPricePerDay = totalDays > 0 ? totalRevenue / totalDays : 0;
 
+    // Calculate dynamic pricing adoption (% of cars with useDynamicPricing enabled)
+    const totalCars = await prisma.car.count({
+      where: {
+        availableForLease: true,
+        ...(cityId && { cityId: parseInt(cityId) }),
+      },
+    });
+    
+    const dynamicPricingCars = await prisma.car.count({
+      where: {
+        availableForLease: true,
+        useDynamicPricing: true,
+        ...(cityId && { cityId: parseInt(cityId) }),
+      },
+    });
+    
+    const dynamicPricingUsage = totalCars > 0
+      ? (dynamicPricingCars / totalCars) * 100
+      : 0;
+
     // Contracts with dynamic pricing breakdown
     const contractsWithPricing = contracts.filter(c => c.dynamicPrice !== null);
-    const dynamicPricingUsage = totalContracts > 0
-      ? (contractsWithPricing.length / totalContracts) * 100
-      : 0;
 
     // Calculate pricing impact (dynamic vs base)
     let totalBaseRevenue = 0;
@@ -134,8 +151,11 @@ export async function getPricingAnalytics(req, res) {
 
       // Dynamic pricing performance
       pricingPerformance: {
-        dynamicPricingUsage: Math.round(dynamicPricingUsage * 100) / 100,
+        dynamicPricingAdoption: Math.round(dynamicPricingUsage * 100) / 100, // % of cars with dynamic pricing enabled
+        totalCars,
+        dynamicPricingCars,
         contractsWithPricing: contractsWithPricing.length,
+        totalContracts,
         revenueImpact: Math.round(pricingImpact * 100) / 100, // % change vs base price
         avgDemandMultiplier: Math.round(avgDemandMultiplier * 100) / 100,
         avgSeasonalMultiplier: Math.round(avgSeasonalMultiplier * 100) / 100,
@@ -367,33 +387,54 @@ export async function updateCarPricingConfig(req, res) {
       purchasePrice,
     } = req.body;
 
-    // If no manual prices provided, calculate recommended values
-    let config = { basePricePerDay, minPricePerDay, maxPricePerDay };
-    
-    if (!basePricePerDay || !minPricePerDay || !maxPricePerDay) {
-      const car = await prisma.car.findUnique({ where: { id: parseInt(id) } });
-      if (car) {
-        const recommended = calculatePriceConstraints({
-          ...car,
-          dailyOperatingCost: dailyOperatingCost || car.dailyOperatingCost,
-          monthlyFinancingCost: monthlyFinancingCost || car.monthlyFinancingCost,
-          purchasePrice: purchasePrice || car.purchasePrice,
-        });
-        config = recommended;
-      }
+    // Get current car data
+    const car = await prisma.car.findUnique({ where: { id: parseInt(id) } });
+    if (!car) {
+      return res.status(404).json({ error: 'Car not found' });
     }
+
+    // Determine if we should calculate prices automatically
+    const shouldCalculatePrices = (
+      // User wants to calculate, OR
+      req.body.calculatePrices === true || 
+      // User provides cost data but no manual prices, OR
+      ((dailyOperatingCost !== undefined || monthlyFinancingCost !== undefined || purchasePrice !== undefined) &&
+       !basePricePerDay && !minPricePerDay && !maxPricePerDay) ||
+      // No prices set at all
+      (!car.basePricePerDay && !basePricePerDay)
+    );
+
+    let config = { 
+      basePricePerDay: basePricePerDay ?? car.basePricePerDay, 
+      minPricePerDay: minPricePerDay ?? car.minPricePerDay, 
+      maxPricePerDay: maxPricePerDay ?? car.maxPricePerDay 
+    };
+    
+    // Calculate recommended prices if needed
+    if (shouldCalculatePrices) {
+      const recommended = calculatePriceConstraints({
+        ...car,
+        dailyOperatingCost: dailyOperatingCost ?? car.dailyOperatingCost,
+        monthlyFinancingCost: monthlyFinancingCost ?? car.monthlyFinancingCost,
+        purchasePrice: purchasePrice ?? car.purchasePrice,
+      });
+      config = recommended;
+    }
+
+    // Prepare update data
+    const updateData = {
+      ...(useDynamicPricing !== undefined && { useDynamicPricing }),
+      basePricePerDay: config.basePricePerDay,
+      minPricePerDay: config.minPricePerDay,
+      maxPricePerDay: config.maxPricePerDay,
+      ...(dailyOperatingCost !== undefined && { dailyOperatingCost }),
+      ...(monthlyFinancingCost !== undefined && { monthlyFinancingCost }),
+      ...(purchasePrice !== undefined && { purchasePrice }),
+    };
 
     const updatedCar = await prisma.car.update({
       where: { id: parseInt(id) },
-      data: {
-        useDynamicPricing: useDynamicPricing ?? undefined,
-        basePricePerDay: config.basePricePerDay,
-        minPricePerDay: config.minPricePerDay,
-        maxPricePerDay: config.maxPricePerDay,
-        dailyOperatingCost,
-        monthlyFinancingCost,
-        purchasePrice,
-      },
+      data: updateData,
     });
 
     res.json(updatedCar);
@@ -401,6 +442,7 @@ export async function updateCarPricingConfig(req, res) {
     console.error('Error in updateCarPricingConfig:', error);
     res.status(500).json({
       error: 'Failed to update car pricing configuration',
+      details: error.message,
     });
   }
 }

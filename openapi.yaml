@@ -96,6 +96,10 @@ components:
         availableForSale: { type: boolean, default: false, description: "Whether the car is available for sale" }
         salePrice: { type: number, format: float, nullable: true, description: "Sale price if car is for sale" }
         saleDescription: { type: string, nullable: true, description: "Description/comment for sale listing" }
+        useDynamicPricing: { type: boolean, default: true, description: "Whether dynamic pricing is enabled for this car" }
+        basePricePerDay: { type: number, format: float, nullable: true, description: "Calculated base price per day" }
+        minPricePerDay: { type: number, format: float, nullable: true, description: "Minimum price per day (floor)" }
+        maxPricePerDay: { type: number, format: float, nullable: true, description: "Maximum price per day (ceiling)" }
         cityId: { type: integer }
         seatCount: { type: integer, example: 5 }
         fuelType: { $ref: '#/components/schemas/FuelType' }
@@ -2096,8 +2100,12 @@ paths:
                   pricingPerformance:
                     type: object
                     properties:
-                      dynamicPricingUsage: { type: number, example: 85.5 }
-                      revenueImpact: { type: number, example: 12.3 }
+                      dynamicPricingAdoption: { type: number, example: 85.5, description: "Percentage of cars with dynamic pricing enabled" }
+                      totalCars: { type: integer, example: 20, description: "Total cars available for lease" }
+                      dynamicPricingCars: { type: integer, example: 17, description: "Number of cars with dynamic pricing enabled" }
+                      contractsWithPricing: { type: integer, example: 12, description: "Contracts with pricing data" }
+                      totalContracts: { type: integer, example: 15, description: "Total contracts in period" }
+                      revenueImpact: { type: number, example: 12.3, description: "Revenue change percentage vs base price" }
                       avgDemandMultiplier: { type: number, example: 1.15 }
                       avgSeasonalMultiplier: { type: number, example: 1.05 }
         '401':
