@@ -21,6 +21,18 @@ export async function sendPasswordResetEmail({ to, resetUrl }) {
     return;
   }
 
+  if (!resendApiKey.startsWith('re_')) {
+    console.error(
+      '[email] RESEND_API_KEY should start with re_ — check for typos, extra quotes, or wrong variable on your host.'
+    );
+  }
+
+  console.log('[email] Sending password reset via Resend', {
+    from: emailFrom,
+    toDomain: to.includes('@') ? to.split('@')[1] : '(invalid)',
+    keyPreview: `${resendApiKey.slice(0, 6)}…`,
+  });
+
   const res = await fetch('https://api.resend.com/emails', {
     method: 'POST',
     headers: {
@@ -38,7 +50,23 @@ export async function sendPasswordResetEmail({ to, resetUrl }) {
 
   const body = await res.text();
   if (!res.ok) {
-    console.error('[email] Resend error:', res.status, body);
+    console.error('[email] Resend send failed:', {
+      status: res.status,
+      body,
+      hint:
+        res.status === 403 || res.status === 422
+          ? 'Verify EMAIL_FROM domain in Resend, or use a verified domain. Test inbox: delivered@resend.dev'
+          : undefined,
+    });
     throw new Error('Failed to send reset email');
+  }
+
+  try {
+    const data = JSON.parse(body);
+    if (data?.id) {
+      console.log('[email] Password reset email queued, Resend id:', data.id);
+    }
+  } catch {
+    // non-JSON success body — ignore
   }
 }
