@@ -121,16 +121,28 @@ model Contract {
 }
 
 model User {
-  id            Int            @id @default(autoincrement())
-  email         String         @unique
-  passwordHash  String
-  firstName     String?
-  lastName      String?
-  phoneNumber   String?
-  role          Role           @default(USER)
-  refreshTokens RefreshToken[]
-  createdAt     DateTime       @default(now())
-  updatedAt     DateTime       @updatedAt
+  id                   Int                   @id @default(autoincrement())
+  email                String                @unique
+  passwordHash         String
+  firstName            String?
+  lastName             String?
+  phoneNumber          String?
+  role                 Role                  @default(USER)
+  refreshTokens        RefreshToken[]
+  passwordResetTokens  PasswordResetToken[]
+  createdAt            DateTime              @default(now())
+  updatedAt            DateTime              @updatedAt
+}
+
+model PasswordResetToken {
+  id        Int      @id @default(autoincrement())
+  tokenHash String   @unique
+  userId    Int
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  @@index([userId])
 }
 
 model RefreshToken {
@@ -207,55 +219,6 @@ model ContactOperationArea {
   @@unique([contactId, cityId])
   @@index([contactId])
   @@index([cityId])
-}
-
-// New Parts model for car parts marketplace
-model Part {
-  id              Int         @id @default(autoincrement())
-  // Mandatory fields
-  make            String      // Car manufacturer (e.g., "BMW", "Toyota")
-  model           String      // Car model (e.g., "320i", "Camry")
-  year            Int         // Year of manufacture
-  oem             String      // OEM part number
-  partName        String      // Name of the part (e.g., "Front Bumper", "Headlight")
-  
-  // Optional fields
-  engineCapacityL Float?      // Engine capacity in liters
-  powerKW         Int?        // Power in kilowatts
-  fuelType        FuelType?   // Fuel type (reusing enum)
-  colour          String?     // Color of the part
-  gearbox         Gearbox?    // Gearbox type (reusing enum)
-  bodyType        BodyType?   // Body type (reusing enum)
-  description     String?     @db.Text // Detailed description
-  condition       PartCondition @default(USED)
-  price           Decimal     @db.Decimal(10, 2)
-  stockQuantity   Int         @default(1)
-  
-  images          PartImage[]
-  createdAt       DateTime    @default(now())
-  updatedAt       DateTime    @updatedAt
-
-  @@index([make, model])
-  @@index([oem])
-}
-
-model PartImage {
-  id        Int      @id @default(autoincrement())
-  partId    Int
-  part      Part     @relation(fields: [partId], references: [id], onDelete: Cascade)
-  filename  String   // stored filename
-  url       String   // public URL or path
-  isMain    Boolean  @default(false)
-  order     Int      @default(0)
-  createdAt DateTime @default(now())
-
-  @@index([partId])
-}
-
-enum PartCondition {
-  NEW
-  USED
-  REFURBISHED
 }
 
 // Dynamic Pricing Models
