@@ -134,8 +134,10 @@ export const createContract = async (req, res, next) => {
     if (sd < oneYearAgo) throw badRequest('startDate cannot be more than 1 year in the past');
     if (ed > tenYearsFromNow) throw badRequest('endDate cannot be more than 10 years in the future');
 
-    // notes (optional string)
-    if (notes !== undefined && !isNonEmptyString(notes)) throw badRequest('notes must be a non-empty string');
+    // notes (optional; empty string allowed)
+    if (notes !== undefined && notes !== null && typeof notes !== 'string') {
+      throw badRequest('notes must be a string');
+    }
 
     const MS_PER_DAY = 1000 * 60 * 60 * 24;
     const days = Math.max(1, Math.ceil(( ed - sd ) / MS_PER_DAY));
@@ -152,10 +154,12 @@ export const createContract = async (req, res, next) => {
         startDate: sd,
         endDate: ed,
         totalPrice,
-        state: 'ACTIVE',
+        state: 'DRAFT',
         mileageStartKm: msKm,
         fuelLevelStartPct: flPct,
-        ...(notes ? { notes: notes.trim() } : {}),
+        ...(notes !== undefined && String(notes).trim() !== ''
+          ? { notes: String(notes).trim() }
+          : {}),
       }
     });
 
@@ -236,8 +240,8 @@ export const updateContract = async (req, res, next) => {
     }
     if (state !== undefined) upd.state = state;
     if (notes !== undefined) {
-      if (!isNonEmptyString(notes)) throw badRequest('notes must be a non-empty string');
-      upd.notes = notes.trim();
+      if (typeof notes !== 'string') throw badRequest('notes must be a string');
+      upd.notes = notes.trim() === '' ? null : notes.trim();
     }
 
     const updated = await prisma.contract.update({ where: { id }, data: upd });
@@ -302,7 +306,9 @@ export const completeContract = async (req, res, next) => {
     const dmg = asNum(damageFee);
     if (dmg === null || dmg < 0) throw badRequest('damageFee must be a non-negative number');
 
-    if (notes !== undefined && !isNonEmptyString(notes)) throw badRequest('notes must be a non-empty string');
+    if (notes !== undefined && notes !== null && typeof notes !== 'string') {
+      throw badRequest('notes must be a string');
+    }
 
     // fees
     const MS_PER_DAY = 1000 * 60 * 60 * 24;
@@ -325,7 +331,9 @@ export const completeContract = async (req, res, next) => {
         fuelLevelEndPct: endFuel,
         extraFees,
         state: 'COMPLETED',
-        ...(notes !== undefined ? { notes: notes.trim() } : {})
+        ...(notes !== undefined
+          ? { notes: notes.trim() === '' ? null : notes.trim() }
+          : {})
       }
     });
 
@@ -351,9 +359,16 @@ export const activateContract = async (req, res, next) => {
       return res.status(409).json({ error: `Cannot activate contract in state ${current.state}. Only DRAFT contracts can be activated.` });
     }
 
-    const updated = await prisma.contract.update({
-      where: { id },
-      data: { state: 'ACTIVE' }
+    const updated = await prisma.$transaction(async (tx) => {
+      const c = await tx.contract.update({
+        where: { id },
+        data: { state: 'ACTIVE' },
+      });
+      await tx.car.update({
+        where: { id: current.carId },
+        data: { state: 'LEASED' },
+      });
+      return c;
     });
 
     res.json(updated);

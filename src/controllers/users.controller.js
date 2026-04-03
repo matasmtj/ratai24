@@ -1,11 +1,16 @@
 import { PrismaClient } from '@prisma/client';
 import { badRequest, notFound } from '../errors.js';
 import bcrypt from 'bcryptjs';
+import { validatePasswordStrength } from '../lib/passwordValidation.js';
 
 const prisma = new PrismaClient();
 
 const isValidEmail = (email) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
-const isValidPassword = (password) => typeof password === 'string' && password.length >= 8;
+
+function assertPasswordPolicy(password) {
+  const r = validatePasswordStrength(password);
+  if (!r.ok) throw badRequest(r.error);
+}
 
 // GET /users/me - Get current user profile
 export const getMe = async (req, res, next) => {
@@ -68,9 +73,7 @@ export const updateMe = async (req, res, next) => {
 
     // Password update
     if (data.password !== undefined) {
-      if (!isValidPassword(data.password)) {
-        throw badRequest('Password must be at least 8 characters');
-      }
+      assertPasswordPolicy(data.password);
       const hashedPassword = await bcrypt.hash(data.password, 10);
       updates.passwordHash = hashedPassword;
       
@@ -202,9 +205,7 @@ export const createUser = async (req, res, next) => {
       throw badRequest('Invalid email format');
     }
 
-    if (!isValidPassword(password)) {
-      throw badRequest('Password must be at least 8 characters');
-    }
+    assertPasswordPolicy(password);
 
     const validRoles = ['GUEST', 'USER', 'ADMIN'];
     const userRole = role && validRoles.includes(role) ? role : 'USER';
@@ -274,9 +275,7 @@ export const updateUser = async (req, res, next) => {
 
     // Password update
     if (data.password !== undefined) {
-      if (!isValidPassword(data.password)) {
-        throw badRequest('Password must be at least 8 characters');
-      }
+      assertPasswordPolicy(data.password);
       const hashedPassword = await bcrypt.hash(data.password, 10);
       updates.passwordHash = hashedPassword;
 

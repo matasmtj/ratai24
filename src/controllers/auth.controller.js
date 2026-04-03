@@ -4,10 +4,10 @@ import prisma from '../models/db.js';
 import { config } from '../config.js';
 import { signAccessToken, issueRefreshToken, rotateRefreshToken, revokeRefreshToken } from '../services/token.service.js';
 import { sendPasswordResetEmail } from '../services/email.service.js';
+import { validatePasswordStrength } from '../lib/passwordValidation.js';
 import { badRequest } from '../errors.js';
 
 const isValidEmail = (email) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
-const isValidPassword = (pw) => typeof pw === 'string' && pw.length >= 8;
 const validRoles = ['GUEST', 'USER', 'ADMIN'];
 
 const RESET_MSG = 'We sent a message to that email address.';
@@ -29,9 +29,9 @@ export async function register(req, res, next) {
       throw badRequest('Valid email is required');
     }
     
-    // Validate password
-    if (!password || !isValidPassword(password)) {
-      throw badRequest('Password must be at least 8 characters');
+    const pwCheck = validatePasswordStrength(password);
+    if (!pwCheck.ok) {
+      throw badRequest(pwCheck.error);
     }
     
     // Validate role (if provided)
@@ -156,8 +156,9 @@ export async function resetPassword(req, res, next) {
     if (!token || typeof token !== 'string' || token.length < 32) {
       throw badRequest('Invalid or missing reset token');
     }
-    if (!password || !isValidPassword(password)) {
-      throw badRequest('Password must be at least 8 characters');
+    const pwReset = validatePasswordStrength(password);
+    if (!pwReset.ok) {
+      throw badRequest(pwReset.error);
     }
 
     const tokenHash = hashResetToken(token);

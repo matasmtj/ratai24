@@ -191,14 +191,24 @@ components:
         firstName: { type: string, nullable: true, example: "John" }
         lastName: { type: string, nullable: true, example: "Doe" }
         phoneNumber: { type: string, nullable: true, example: "+37060012345" }
-        password: { type: string, format: password, minLength: 8, example: "newpassword123" }
+        password:
+          type: string
+          format: password
+          minLength: 8
+          description: At least 8 characters, one letter (a-z or A-Z), and one digit (0-9).
+          example: "newpassword1"
       additionalProperties: false
     UserCreate:
       type: object
       required: [email, password]
       properties:
         email: { type: string, format: email, example: "newuser@example.com" }
-        password: { type: string, format: password, minLength: 8, example: "password123" }
+        password:
+          type: string
+          format: password
+          minLength: 8
+          description: At least 8 characters, one letter, and one digit.
+          example: "password1x"
         firstName: { type: string, example: "John" }
         lastName: { type: string, example: "Doe" }
         phoneNumber: { type: string, example: "+37060012345" }
@@ -210,7 +220,12 @@ components:
         firstName: { type: string, nullable: true, example: "John" }
         lastName: { type: string, nullable: true, example: "Doe" }
         phoneNumber: { type: string, nullable: true, example: "+37060012345" }
-        password: { type: string, format: password, minLength: 8, example: "newpassword123" }
+        password:
+          type: string
+          format: password
+          minLength: 8
+          description: At least 8 characters, one letter, and one digit.
+          example: "newpassword1"
         role: { type: string, enum: [GUEST, USER, ADMIN], example: "USER" }
       additionalProperties: false
 
@@ -468,7 +483,10 @@ paths:
               required: [token, password]
               properties:
                 token: { type: string, description: Opaque token from the reset link }
-                password: { type: string, minLength: 8 }
+                password:
+                  type: string
+                  minLength: 8
+                  description: At least 8 characters, one letter, and one digit.
       responses:
         '204': { description: Password updated; all refresh tokens revoked }
         '400':
@@ -503,7 +521,7 @@ paths:
       description: >
         Update email, firstName, lastName, phoneNumber, and/or password.
         Email must be unique and valid format.
-        Password must be at least 8 characters.
+        Password must be at least 8 characters and include one letter and one digit.
         Changing password will revoke all refresh tokens.
         Role cannot be changed via this endpoint.
       security: [{ bearerAuth: [] }]
@@ -1090,6 +1108,7 @@ paths:
     post:
       tags: [Contracts]
       summary: Create a contract (USER/ADMIN)
+      description: Creates a contract in DRAFT (pending admin approval). An admin must activate it before it becomes ACTIVE.
       security: [{ bearerAuth: [] }]
       requestBody:
         required: true
@@ -2047,6 +2066,56 @@ paths:
           description: Unauthorized
         '403':
           description: Forbidden - ADMIN only
+
+  /api/admin/pricing/seasonal-factors/{id}:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema: { type: integer }
+    put:
+      tags: [Admin - Pricing]
+      summary: Update a seasonal pricing factor
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name: { type: string }
+                startDate: { type: string, format: date }
+                endDate: { type: string, format: date }
+                multiplier: { type: number }
+                cityId: { type: integer, nullable: true }
+                isActive: { type: boolean }
+      responses:
+        '200':
+          description: Seasonal factor updated
+        '400':
+          description: Bad request
+        '401':
+          description: Unauthorized
+        '403':
+          description: Forbidden - ADMIN only
+        '404':
+          description: Not found
+    delete:
+      tags: [Admin - Pricing]
+      summary: Delete a seasonal pricing factor
+      security:
+        - bearerAuth: []
+      responses:
+        '204':
+          description: Deleted
+        '401':
+          description: Unauthorized
+        '403':
+          description: Forbidden - ADMIN only
+        '404':
+          description: Not found
 
   /api/admin/pricing/refresh:
     post:

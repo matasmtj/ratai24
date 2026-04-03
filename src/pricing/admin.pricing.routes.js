@@ -30,6 +30,16 @@ router.delete('/api/admin/pricing/rules/:id', adminAuth, adminPricingController.
 // Seasonal factors management
 router.post('/api/admin/pricing/seasonal-factors', adminAuth, adminPricingController.createSeasonalFactorRoute);
 router.get('/api/admin/pricing/seasonal-factors', adminAuth, adminPricingController.getSeasonalFactors);
+router.put(
+  '/api/admin/pricing/seasonal-factors/:id',
+  adminAuth,
+  adminPricingController.updateSeasonalFactorRoute
+);
+router.delete(
+  '/api/admin/pricing/seasonal-factors/:id',
+  adminAuth,
+  adminPricingController.deleteSeasonalFactorRoute
+);
 
 // Manual refresh
 router.post('/api/admin/pricing/refresh', adminAuth, adminPricingController.refreshPricingData);

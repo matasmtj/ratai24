@@ -130,13 +130,101 @@ export function getHolidays(year) {
   ];
 }
 
+function parseDateOnlyUtc(value) {
+  if (value == null || typeof value !== 'string') throw new Error('Invalid date');
+  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(value).trim());
+  if (!m) throw new Error('Invalid date format; use YYYY-MM-DD');
+  const y = Number(m[1]);
+  const mo = Number(m[2]);
+  const d = Number(m[3]);
+  return new Date(Date.UTC(y, mo - 1, d, 12, 0, 0));
+}
+
+function parseMultiplier(raw) {
+  const s = typeof raw === 'string' ? raw.replace(',', '.').trim() : raw;
+  const mult = Number(s);
+  if (!Number.isFinite(mult) || mult < 0.1 || mult > 3) {
+    throw new Error('multiplier must be between 0.1 and 3');
+  }
+  return mult;
+}
+
 /**
  * Create a seasonal factor rule
  * @param {Object} data - Seasonal factor data
  * @returns {Promise<Object>} Created seasonal factor
  */
 export async function createSeasonalFactor(data) {
+  const name = String(data?.name ?? '').trim();
+  if (!name) throw new Error('Name is required');
+  const startDate = parseDateOnlyUtc(data.startDate);
+  const endDate = parseDateOnlyUtc(data.endDate);
+  if (endDate < startDate) throw new Error('endDate must be on or after startDate');
+  const multiplier = parseMultiplier(data.multiplier);
+  let cityId = null;
+  if (data.cityId != null && data.cityId !== '') {
+    const c = parseInt(String(data.cityId), 10);
+    if (Number.isNaN(c)) throw new Error('Invalid cityId');
+    cityId = c;
+  }
   return prisma.seasonalFactor.create({
-    data,
+    data: {
+      name,
+      startDate,
+      endDate,
+      multiplier,
+      cityId,
+      isActive: data.isActive !== false,
+    },
   });
+}
+
+/**
+ * @param {number} id
+ * @param {Object} body
+ * @returns {Promise<Object|null>}
+ */
+export async function updateSeasonalFactorRecord(id, body) {
+  const existing = await prisma.seasonalFactor.findUnique({ where: { id } });
+  if (!existing) return null;
+
+  const startDate =
+    body.startDate !== undefined ? parseDateOnlyUtc(body.startDate) : existing.startDate;
+  const endDate =
+    body.endDate !== undefined ? parseDateOnlyUtc(body.endDate) : existing.endDate;
+  if (endDate < startDate) throw new Error('endDate must be on or after startDate');
+
+  const name =
+    body.name !== undefined ? String(body.name).trim() : existing.name;
+  if (!name) throw new Error('Name cannot be empty');
+
+  let multiplier = existing.multiplier;
+  if (body.multiplier !== undefined) {
+    multiplier = parseMultiplier(body.multiplier);
+  }
+
+  let cityId = existing.cityId;
+  if (body.cityId !== undefined) {
+    if (body.cityId === null || body.cityId === '') cityId = null;
+    else {
+      const c = parseInt(String(body.cityId), 10);
+      if (Number.isNaN(c)) throw new Error('Invalid cityId');
+      cityId = c;
+    }
+  }
+
+  const isActive =
+    body.isActive !== undefined ? Boolean(body.isActive) : existing.isActive;
+
+  return prisma.seasonalFactor.update({
+    where: { id },
+    data: { name, startDate, endDate, multiplier, cityId, isActive },
+  });
+}
+
+/**
+ * @param {number} id
+ */
+export async function deleteSeasonalFactorRecord(id) {
+  await prisma.seasonalFactor.delete({ where: { id } });
 }

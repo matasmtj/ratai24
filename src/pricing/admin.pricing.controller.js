@@ -7,7 +7,11 @@ import { PrismaClient } from '@prisma/client';
 const prisma = new PrismaClient();
 
 import { calculatePriceConstraints } from './calculators/base-price.calculator.js';
-import { createSeasonalFactor } from './calculators/seasonal.calculator.js';
+import {
+  createSeasonalFactor,
+  updateSeasonalFactorRecord,
+  deleteSeasonalFactorRecord,
+} from './calculators/seasonal.calculator.js';
 import { runAllPricingJobs } from './pricing.jobs.js';
 
 /**
@@ -546,15 +550,76 @@ export async function deletePricingRule(req, res) {
  * Create a seasonal factor
  * POST /api/admin/pricing/seasonal-factors
  */
+function seasonalClientErrorMessage(error) {
+  const msg = error?.message || '';
+  if (
+    msg.includes('required') ||
+    msg.includes('Invalid') ||
+    msg.includes('cannot be empty') ||
+    msg.includes('must be')
+  ) {
+    return msg;
+  }
+  return null;
+}
+
 export async function createSeasonalFactorRoute(req, res) {
   try {
     const factor = await createSeasonalFactor(req.body);
     res.status(201).json(factor);
   } catch (error) {
     console.error('Error in createSeasonalFactorRoute:', error);
+    const clientMsg = seasonalClientErrorMessage(error);
+    if (clientMsg) {
+      return res.status(400).json({ error: clientMsg });
+    }
     res.status(500).json({
       error: 'Failed to create seasonal factor',
     });
+  }
+}
+
+/**
+ * PUT /api/admin/pricing/seasonal-factors/:id
+ */
+export async function updateSeasonalFactorRoute(req, res) {
+  try {
+    const id = parseInt(req.params.id, 10);
+    if (Number.isNaN(id)) {
+      return res.status(400).json({ error: 'Invalid id' });
+    }
+    const updated = await updateSeasonalFactorRecord(id, req.body ?? {});
+    if (!updated) {
+      return res.status(404).json({ error: 'Seasonal factor not found' });
+    }
+    res.json(updated);
+  } catch (error) {
+    console.error('Error in updateSeasonalFactorRoute:', error);
+    const clientMsg = seasonalClientErrorMessage(error);
+    if (clientMsg) {
+      return res.status(400).json({ error: clientMsg });
+    }
+    res.status(500).json({ error: 'Failed to update seasonal factor' });
+  }
+}
+
+/**
+ * DELETE /api/admin/pricing/seasonal-factors/:id
+ */
+export async function deleteSeasonalFactorRoute(req, res) {
+  try {
+    const id = parseInt(req.params.id, 10);
+    if (Number.isNaN(id)) {
+      return res.status(400).json({ error: 'Invalid id' });
+    }
+    await deleteSeasonalFactorRecord(id);
+    res.status(204).send();
+  } catch (error) {
+    if (error?.code === 'P2025') {
+      return res.status(404).json({ error: 'Seasonal factor not found' });
+    }
+    console.error('Error in deleteSeasonalFactorRoute:', error);
+    res.status(500).json({ error: 'Failed to delete seasonal factor' });
   }
 }
 
