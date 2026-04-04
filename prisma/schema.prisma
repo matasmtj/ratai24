@@ -63,6 +63,7 @@ model Car {
   cityId            Int
   city              City       @relation(fields: [cityId], references: [id], onDelete: Cascade)
   contracts         Contract[]
+  prepBlocks        CarPrepBlock[]
   images            CarImage[]
   pricingSnapshots  PricingSnapshot[]
   pricingRules      PricingRule[]
@@ -93,6 +94,21 @@ model CarImage {
   createdAt DateTime @default(now())
 
   @@index([carId])
+}
+
+/// Internal calendar hold for cleaning / prep (e.g. day after late return). Not a user-facing contract.
+model CarPrepBlock {
+  id        Int      @id @default(autoincrement())
+  carId     Int
+  car       Car      @relation(fields: [carId], references: [id], onDelete: Cascade)
+  /// Inclusive start (UTC instant = start of prep day in Europe/Vilnius when created by completeContract).
+  startDate DateTime
+  /// Exclusive end (same convention as typical half-open ranges for overlap checks).
+  endDate   DateTime
+  createdAt DateTime @default(now())
+
+  @@index([carId])
+  @@index([carId, startDate, endDate])
 }
 
 model Contract {

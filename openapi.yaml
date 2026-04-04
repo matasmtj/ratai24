@@ -277,6 +277,25 @@ components:
         notes: { type: string, example: "Minor scratch on rear bumper" }
       additionalProperties: false
 
+    CarPrepBlock:
+      type: object
+      description: Internal calendar hold (e.g. cleaning day); half-open [startDate, endDate).
+      properties:
+        id: { type: integer }
+        carId: { type: integer }
+        startDate: { type: string, format: date-time }
+        endDate: { type: string, format: date-time }
+        createdAt: { type: string, format: date-time }
+    CarContractsCalendar:
+      type: object
+      properties:
+        contracts:
+          type: array
+          items: { $ref: '#/components/schemas/Contract' }
+        prepBlocks:
+          type: array
+          items: { $ref: '#/components/schemas/CarPrepBlock' }
+
     # ---------- Contact ----------
     Contact:
       type: object
@@ -964,9 +983,14 @@ paths:
     get:
       tags: [Cars]
       summary: List contracts for a specific car (hierarchical)
+      description: Returns contracts plus internal prep/cleaning calendar blocks (prepBlocks).
       parameters: [{ in: path, name: id, required: true, schema: { type: integer } }]
       responses:
-        '200': { description: OK }
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CarContractsCalendar' }
         '404': { description: Car not found }
 
   # ========== Cars for Sale ==========

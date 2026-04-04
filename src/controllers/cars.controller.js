@@ -92,7 +92,7 @@ export const listCarsForSale = async (req, res, next) => {
 // GET /cars/for-lease?cityId=
 export const listCarsForLease = async (req, res, next) => {
   try {
-    const where = { availableForLease: true };
+    const where = { availableForLease: true, state: { not: 'MAINTENANCE' } };
     if (req.query.cityId !== undefined) {
       const cid = asInt(req.query.cityId);
       if (cid === null) throw badRequest('cityId must be an integer');
@@ -111,6 +111,9 @@ export const getCar = async (req, res, next) => {
     if (id === null) throw badRequest('id must be an integer');
     const car = await prisma.car.findUnique({ where: { id }, select: carPublic });
     if (!car) throw notFound('Car not found');
+    if (car.state === 'MAINTENANCE' && req.user?.role !== 'ADMIN') {
+      throw notFound('Car not found');
+    }
     res.json(car);
   } catch (e) { next(e); }
 };
@@ -368,7 +371,15 @@ export const listContractsForCar = async (req, res, next) => {
     if (id === null) throw badRequest('id must be an integer');
     const car = await prisma.car.findUnique({ where: { id }, include: { contracts: true } });
     if (!car) throw notFound('Car not found');
-    res.json(car.contracts);
+    if (car.state === 'MAINTENANCE' && req.user?.role !== 'ADMIN') {
+      throw notFound('Car not found');
+    }
+    const prepBlocks = await prisma.carPrepBlock.findMany({
+      where: { carId: id },
+      orderBy: { startDate: 'asc' },
+      select: { id: true, carId: true, startDate: true, endDate: true, createdAt: true },
+    });
+    res.json({ contracts: car.contracts, prepBlocks });
   } catch (e) { next(e); }
 };
 

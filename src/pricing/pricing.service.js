@@ -42,6 +42,9 @@ export async function calculateDynamicPrice({ carId, startDate, endDate, userId 
     if (!car.availableForLease) {
       throw new Error('Car is not available for lease');
     }
+    if (car.state === 'MAINTENANCE') {
+      throw new Error('Car is not available for lease');
+    }
 
     // If dynamic pricing is disabled, return fixed price
     if (!car.useDynamicPricing) {

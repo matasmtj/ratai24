@@ -1,5 +1,6 @@
 import prisma from '../models/db.js';
 import { badRequest, notFound } from '../errors.js';
+import { rentalEndNeedsPrepDay, nextPrepDayRangeUtc } from '../lib/rentalPrep.js';
 
 const asInt = (v) => { const n = Number(v); return Number.isInteger(n) ? n : null; };
 const asNum = (v) => { const n = Number(v); return Number.isFinite(n) ? n : null; };
@@ -12,6 +13,29 @@ const isOwnerOrAdmin = (req, userId) => {
   if (req.user.role === 'ADMIN') return true;
   return req.user.id === userId;
 };
+
+async function assertNoCalendarConflict(carId, start, end, excludeContractId = null) {
+  const overContract = await prisma.contract.findFirst({
+    where: {
+      carId,
+      ...(excludeContractId != null ? { id: { not: excludeContractId } } : {}),
+      state: { in: ['DRAFT', 'ACTIVE'] },
+      AND: [{ startDate: { lt: end } }, { endDate: { gt: start } }],
+    },
+  });
+  if (overContract) {
+    throw badRequest('Selected dates overlap an existing reservation');
+  }
+  const overPrep = await prisma.carPrepBlock.findFirst({
+    where: {
+      carId,
+      AND: [{ startDate: { lt: end } }, { endDate: { gt: start } }],
+    },
+  });
+  if (overPrep) {
+    throw badRequest('Selected dates are not available for this car');
+  }
+}
 
 // GET /contracts
 export const listContracts = async (req, res, next) => {
@@ -121,6 +145,7 @@ export const createContract = async (req, res, next) => {
     // FK: car exists
     const car = await prisma.car.findUnique({ where: { id: carIdNum } });
     if (!car) throw badRequest('Invalid carId');
+    if (car.state === 'MAINTENANCE') throw badRequest('This car is not available for booking');
 
     // dates
     const sd = new Date(startDate), ed = new Date(endDate);
@@ -144,6 +169,8 @@ export const createContract = async (req, res, next) => {
     const totalPrice = days * car.pricePerDay;
     
     if (totalPrice < 0) throw badRequest('Calculated totalPrice is negative (invalid dates or pricePerDay)');
+
+    await assertNoCalendarConflict(car.id, sd, ed);
 
     const userId = req.user?.id ?? 1;
 
@@ -244,6 +271,14 @@ export const updateContract = async (req, res, next) => {
       upd.notes = notes.trim() === '' ? null : notes.trim();
     }
 
+    const finalState = state !== undefined ? state : current.state;
+    if (finalState === 'DRAFT' || finalState === 'ACTIVE') {
+      if (car.state === 'MAINTENANCE') {
+        throw badRequest('This car is not available for booking');
+      }
+      await assertNoCalendarConflict(newCarId, newStart, newEnd, id);
+    }
+
     const updated = await prisma.contract.update({ where: { id }, data: upd });
     res.json(updated);
   } catch (e) {
@@ -324,24 +359,38 @@ export const completeContract = async (req, res, next) => {
 
     const extraFees = parseFloat((extraKmFee + fuelFee + dmg).toFixed(2));
 
-    const updated = await prisma.contract.update({
-      where: { id },
-      data: {
-        mileageEndKm: endKm,
-        fuelLevelEndPct: endFuel,
-        extraFees,
-        state: 'COMPLETED',
-        ...(notes !== undefined
-          ? { notes: notes.trim() === '' ? null : notes.trim() }
-          : {})
+    await prisma.$transaction(async (tx) => {
+      await tx.contract.update({
+        where: { id },
+        data: {
+          mileageEndKm: endKm,
+          fuelLevelEndPct: endFuel,
+          extraFees,
+          state: 'COMPLETED',
+          ...(notes !== undefined
+            ? { notes: notes.trim() === '' ? null : notes.trim() }
+            : {}),
+        },
+      });
+
+      await tx.car.update({
+        where: { id: current.carId },
+        data: { odometerKm: endKm, state: 'AVAILABLE' },
+      });
+
+      if (rentalEndNeedsPrepDay(current.endDate)) {
+        const { startUtc, endExclusiveUtc } = nextPrepDayRangeUtc(current.endDate);
+        await tx.carPrepBlock.create({
+          data: {
+            carId: current.carId,
+            startDate: startUtc,
+            endDate: endExclusiveUtc,
+          },
+        });
       }
     });
 
-    await prisma.car.update({
-      where: { id: current.carId },
-      data: { odometerKm: endKm, state: 'MAINTENANCE' }
-    });
-
+    const updated = await prisma.contract.findUnique({ where: { id } });
     res.json(updated);
   } catch (e) { next(e); }
 };
