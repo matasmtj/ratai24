@@ -6,18 +6,79 @@
 import { PrismaClient } from '@prisma/client';
 const prisma = new PrismaClient();
 
+const RECENT_ACTIVITY_BONUS_PCT = 3;
+const MAX_TOTAL_LOYALTY_DISCOUNT_PCT = 15;
+
+/**
+ * Shared loyalty math for pricing + /loyalty API (must stay in sync).
+ * @param {Array<{ totalPrice: number, state: string, endDate: Date }>} contracts
+ */
+export function computeLoyaltyFromContracts(contracts) {
+  if (!contracts.length) {
+    return {
+      tier: 'New Customer',
+      tierDiscountPct: 0,
+      recentActivityBonusPct: 0,
+      effectiveDiscountPct: 0,
+      multiplier: 1.0,
+      completedRentals: 0,
+      lifetimeValue: 0,
+    };
+  }
+
+  const completedRentals = contracts.filter((c) => c.state === 'COMPLETED').length;
+  const lifetimeValue = contracts.reduce((sum, c) => sum + c.totalPrice, 0);
+
+  let tier = 'New Customer';
+  let tierDiscountPct = 0;
+
+  if (completedRentals >= 11 || lifetimeValue >= 5000) {
+    tier = 'VIP';
+    tierDiscountPct = 12;
+  } else if (completedRentals >= 6) {
+    tier = 'Regular';
+    tierDiscountPct = 8;
+  } else if (completedRentals >= 2) {
+    tier = 'Returning';
+    tierDiscountPct = 5;
+  }
+
+  const sixtyDaysAgo = new Date();
+  sixtyDaysAgo.setDate(sixtyDaysAgo.getDate() - 60);
+  const recentRental = contracts.some((c) => c.endDate >= sixtyDaysAgo);
+  let recentActivityBonusPct = 0;
+  if (recentRental && tierDiscountPct > 0) {
+    recentActivityBonusPct = RECENT_ACTIVITY_BONUS_PCT;
+  }
+
+  const effectiveDiscountPct = Math.min(
+    tierDiscountPct + recentActivityBonusPct,
+    MAX_TOTAL_LOYALTY_DISCOUNT_PCT
+  );
+  const multiplier = 1 - effectiveDiscountPct / 100;
+
+  return {
+    tier,
+    tierDiscountPct,
+    recentActivityBonusPct,
+    effectiveDiscountPct,
+    multiplier,
+    completedRentals,
+    lifetimeValue,
+  };
+}
+
 /**
  * Calculate customer-specific multiplier based on history
- * @param {number} userId - User ID (optional - null for guest pricing)
+ * @param {number|null} userId - User ID (optional - null for guest pricing)
  * @returns {Promise<number>} Customer multiplier
  */
 export async function calculateCustomerMultiplier(userId = null) {
   if (!userId) {
-    return 1.0; // Guest/first-time customer - normal pricing
+    return 1.0;
   }
 
   try {
-    // Get customer's rental history
     const contracts = await prisma.contract.findMany({
       where: {
         userId,
@@ -26,46 +87,11 @@ export async function calculateCustomerMultiplier(userId = null) {
       select: {
         totalPrice: true,
         state: true,
-        startDate: true,
         endDate: true,
       },
     });
 
-    if (contracts.length === 0) {
-      return 1.0; // First booking - normal pricing
-    }
-
-    // Calculate loyalty tier
-    const completedRentals = contracts.filter(c => c.state === 'COMPLETED').length;
-    const lifetimeValue = contracts.reduce((sum, c) => sum + c.totalPrice, 0);
-
-    let loyaltyDiscount = 0;
-
-    // Tier 1: Returning customer (2-5 rentals)
-    if (completedRentals >= 2 && completedRentals <= 5) {
-      loyaltyDiscount = 0.05; // 5% discount
-    }
-    // Tier 2: Regular customer (6-10 rentals)
-    else if (completedRentals >= 6 && completedRentals <= 10) {
-      loyaltyDiscount = 0.08; // 8% discount
-    }
-    // Tier 3: VIP customer (11+ rentals OR €5000+ lifetime value)
-    else if (completedRentals > 10 || lifetimeValue >= 5000) {
-      loyaltyDiscount = 0.12; // 12% discount
-    }
-
-    // Check recent activity (rented in last 60 days gets extra bonus)
-    const sixtyDaysAgo = new Date();
-    sixtyDaysAgo.setDate(sixtyDaysAgo.getDate() - 60);
-
-    const recentRental = contracts.some(c => c.endDate >= sixtyDaysAgo);
-    if (recentRental && loyaltyDiscount > 0) {
-      loyaltyDiscount += 0.03; // Extra 3% for recent activity
-    }
-
-    // Return multiplier (discount reduces the price)
-    const multiplier = 1.0 - Math.min(loyaltyDiscount, 0.15); // Cap at 15% total discount
-    return multiplier;
+    return computeLoyaltyFromContracts(contracts).multiplier;
   } catch (error) {
     console.error('Error calculating customer multiplier:', error);
     return 1.0;
@@ -82,6 +108,8 @@ export async function getCustomerLoyaltyInfo(userId) {
     return {
       tier: 'Guest',
       discount: 0,
+      tierDiscount: 0,
+      recentActivityBonus: 0,
       rentalsCount: 0,
       lifetimeValue: 0,
     };
@@ -96,37 +124,27 @@ export async function getCustomerLoyaltyInfo(userId) {
       select: {
         totalPrice: true,
         state: true,
+        endDate: true,
       },
     });
 
-    const completedRentals = contracts.filter(c => c.state === 'COMPLETED').length;
-    const lifetimeValue = contracts.reduce((sum, c) => sum + c.totalPrice, 0);
-
-    let tier = 'New Customer';
-    let discount = 0;
-
-    if (completedRentals >= 11 || lifetimeValue >= 5000) {
-      tier = 'VIP';
-      discount = 12;
-    } else if (completedRentals >= 6) {
-      tier = 'Regular';
-      discount = 8;
-    } else if (completedRentals >= 2) {
-      tier = 'Returning';
-      discount = 5;
-    }
+    const L = computeLoyaltyFromContracts(contracts);
 
     return {
-      tier,
-      discount,
-      rentalsCount: completedRentals,
-      lifetimeValue: Math.round(lifetimeValue * 100) / 100,
+      tier: L.tier,
+      discount: L.effectiveDiscountPct,
+      tierDiscount: L.tierDiscountPct,
+      recentActivityBonus: L.recentActivityBonusPct,
+      rentalsCount: L.completedRentals,
+      lifetimeValue: Math.round(L.lifetimeValue * 100) / 100,
     };
   } catch (error) {
     console.error('Error getting loyalty info:', error);
     return {
       tier: 'Unknown',
       discount: 0,
+      tierDiscount: 0,
+      recentActivityBonus: 0,
       rentalsCount: 0,
       lifetimeValue: 0,
     };

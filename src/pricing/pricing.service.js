@@ -9,7 +9,10 @@ const prisma = new PrismaClient();
 import { calculateBasePrice } from './calculators/base-price.calculator.js';
 import { calculateDemandMultiplier } from './calculators/demand.calculator.js';
 import { calculateSeasonalMultiplier } from './calculators/seasonal.calculator.js';
-import { calculateUtilizationMultiplier, getMaintenanceMultiplier } from './calculators/utilization.calculator.js';
+import {
+  calculateUtilizationMultiplierForCar,
+  getMaintenanceMultiplier,
+} from './calculators/utilization.calculator.js';
 import { calculateDurationMultiplier } from './calculators/duration.calculator.js';
 import { calculateCustomerMultiplier } from './calculators/customer.calculator.js';
 
@@ -84,7 +87,7 @@ export async function calculateDynamicPrice({ carId, startDate, endDate, userId 
     ] = await Promise.all([
       calculateDemandMultiplier(car.cityId, startDate, endDate),
       calculateSeasonalMultiplier(startDate, duration, car.cityId),
-      calculateUtilizationMultiplier(carId),
+      Promise.resolve(calculateUtilizationMultiplierForCar(car)),
       Promise.resolve(calculateDurationMultiplier(duration)),
       calculateCustomerMultiplier(userId),
     ]);

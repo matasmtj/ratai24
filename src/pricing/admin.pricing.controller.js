@@ -389,6 +389,8 @@ export async function updateCarPricingConfig(req, res) {
       dailyOperatingCost,
       monthlyFinancingCost,
       purchasePrice,
+      applyUtilizationPricing,
+      utilizationMultiplierOverride,
     } = req.body;
 
     // Get current car data
@@ -434,7 +436,28 @@ export async function updateCarPricingConfig(req, res) {
       ...(dailyOperatingCost !== undefined && { dailyOperatingCost }),
       ...(monthlyFinancingCost !== undefined && { monthlyFinancingCost }),
       ...(purchasePrice !== undefined && { purchasePrice }),
+      ...(applyUtilizationPricing !== undefined && {
+        applyUtilizationPricing: applyUtilizationPricing === true,
+      }),
+      ...(utilizationMultiplierOverride !== undefined && {
+        utilizationMultiplierOverride:
+          utilizationMultiplierOverride === null || utilizationMultiplierOverride === ''
+            ? null
+            : Number(utilizationMultiplierOverride),
+      }),
     };
+
+    if (
+      updateData.utilizationMultiplierOverride !== undefined &&
+      updateData.utilizationMultiplierOverride !== null
+    ) {
+      const u = updateData.utilizationMultiplierOverride;
+      if (!Number.isFinite(u) || u < 0.1 || u > 3) {
+        return res.status(400).json({
+          error: 'utilizationMultiplierOverride must be a number between 0.1 and 3, or null',
+        });
+      }
+    }
 
     const updatedCar = await prisma.car.update({
       where: { id: parseInt(id) },

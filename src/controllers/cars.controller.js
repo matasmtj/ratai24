@@ -24,6 +24,8 @@ const carPublic = {
   basePricePerDay: true,
   minPricePerDay: true,
   maxPricePerDay: true,
+  applyUtilizationPricing: true,
+  utilizationMultiplierOverride: true,
   seatCount: true, fuelType: true, powerKW: true, engineCapacityL: true,
   bodyType: true, gearbox: true, state: true, odometerKm: true,
   images: {
@@ -125,7 +127,9 @@ export const createCar = async (req, res, next) => {
       seatCount = 5, fuelType, powerKW, engineCapacityL = null,
       bodyType, gearbox, state = 'AVAILABLE', odometerKm = 0,
       availableForLease = true, availableForSale = false, salePrice = null, saleDescription = null, colour = null,
-      useDynamicPricing = false
+      useDynamicPricing = false,
+      applyUtilizationPricing = true,
+      utilizationMultiplierOverride = null,
     } = body;
 
     // required strings
@@ -180,6 +184,13 @@ export const createCar = async (req, res, next) => {
     const salePriceNum = salePrice !== null ? asNum(salePrice) : null;
     if (salePrice !== null && salePriceNum === null) throw badRequest('salePrice must be a number or null');
 
+    let utilOverride = null;
+    if (utilizationMultiplierOverride !== null && utilizationMultiplierOverride !== undefined && utilizationMultiplierOverride !== '') {
+      const u = asNum(utilizationMultiplierOverride);
+      if (u === null || u < 0.1 || u > 3) throw badRequest('utilizationMultiplierOverride must be between 0.1 and 3 or null');
+      utilOverride = u;
+    }
+
     const created = await prisma.car.create({
       data: {
         vin: vin.trim().toUpperCase(),
@@ -191,6 +202,8 @@ export const createCar = async (req, res, next) => {
         availableForLease: availableForLease === true,
         availableForSale: availableForSale === true,
         useDynamicPricing: useDynamicPricing === true,
+        applyUtilizationPricing: applyUtilizationPricing !== false,
+        utilizationMultiplierOverride: utilOverride,
         salePrice: salePriceNum,
         saleDescription: saleDescription ? String(saleDescription).trim() : null,
         colour: colour ? String(colour).trim() : null,
@@ -281,6 +294,20 @@ export const updateCar = async (req, res, next) => {
     if (data.availableForLease !== undefined) data.availableForLease = data.availableForLease === true;
     if (data.availableForSale !== undefined) data.availableForSale = data.availableForSale === true;
     if (data.useDynamicPricing !== undefined) data.useDynamicPricing = data.useDynamicPricing === true;
+    if (data.applyUtilizationPricing !== undefined) {
+      data.applyUtilizationPricing = data.applyUtilizationPricing === true;
+    }
+    if (data.utilizationMultiplierOverride !== undefined) {
+      if (data.utilizationMultiplierOverride === null || data.utilizationMultiplierOverride === '') {
+        data.utilizationMultiplierOverride = null;
+      } else {
+        const u = asNum(data.utilizationMultiplierOverride);
+        if (u === null || u < 0.1 || u > 3) {
+          throw badRequest('utilizationMultiplierOverride must be between 0.1 and 3 or null');
+        }
+        data.utilizationMultiplierOverride = u;
+      }
+    }
 
     // enums
     if (data.fuelType !== undefined && !FuelType.includes(data.fuelType))   throw badRequest(`fuelType must be one of: ${FuelType.join(', ')}`);

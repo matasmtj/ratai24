@@ -1,13 +1,55 @@
 /**
  * Utilization Calculator
- * Adjusts pricing based on how well a specific car is performing
+ * Adjusts pricing based on how well a specific car is performing.
+ *
+ * Default bands (when no per-car override): edit the constants below or use
+ * Car.utilizationMultiplierOverride / Car.applyUtilizationPricing in the database.
  */
 
 import { PrismaClient } from '@prisma/client';
 const prisma = new PrismaClient();
 
+const TARGET_UTILIZATION = 0.75;
+
 /**
- * Calculate utilization multiplier for a specific car
+ * @param {Object} car - Car row with utilization fields (from prisma include/select)
+ * @returns {number} Utilization multiplier
+ */
+export function calculateUtilizationMultiplierForCar(car) {
+  if (!car || car.applyUtilizationPricing === false) {
+    return 1.0;
+  }
+
+  if (
+    car.utilizationMultiplierOverride != null &&
+    Number.isFinite(car.utilizationMultiplierOverride)
+  ) {
+    const m = car.utilizationMultiplierOverride;
+    if (m >= 0.1 && m <= 3) return m;
+  }
+
+  if (car.utilizationRate === null || car.utilizationRate === undefined) {
+    return 1.0;
+  }
+
+  const utilizationRate = car.utilizationRate;
+
+  if (utilizationRate < 0.3) {
+    return 0.75;
+  }
+  if (utilizationRate < 0.5) {
+    return 0.85;
+  }
+  if (utilizationRate > 0.9) {
+    return 1.25;
+  }
+  if (utilizationRate > TARGET_UTILIZATION) {
+    return 1.1;
+  }
+  return 1.0;
+}
+
+/**
  * @param {number} carId - Car ID
  * @returns {Promise<number>} Utilization multiplier
  */
@@ -15,33 +57,13 @@ export async function calculateUtilizationMultiplier(carId) {
   try {
     const car = await prisma.car.findUnique({
       where: { id: carId },
-      select: { utilizationRate: true },
+      select: {
+        utilizationRate: true,
+        applyUtilizationPricing: true,
+        utilizationMultiplierOverride: true,
+      },
     });
-
-    if (!car || car.utilizationRate === null || car.utilizationRate === undefined) {
-      return 1.0; // No data available
-    }
-
-    const utilizationRate = car.utilizationRate;
-    const TARGET_UTILIZATION = 0.75; // Target 75% utilization
-
-    // Adjust pricing based on utilization
-    if (utilizationRate < 0.3) {
-      // Very low utilization (< 30%) - aggressive discount
-      return 0.75; // 25% discount
-    } else if (utilizationRate < 0.5) {
-      // Low utilization (30-50%) - moderate discount
-      return 0.85; // 15% discount
-    } else if (utilizationRate > 0.9) {
-      // Very high utilization (> 90%) - premium pricing
-      return 1.25; // 25% premium
-    } else if (utilizationRate > TARGET_UTILIZATION) {
-      // Above target utilization - slight premium
-      return 1.1; // 10% premium
-    } else {
-      // Normal utilization - no adjustment
-      return 1.0;
-    }
+    return calculateUtilizationMultiplierForCar(car);
   } catch (error) {
     console.error('Error calculating utilization multiplier:', error);
     return 1.0;
@@ -59,7 +81,6 @@ export async function updateCarUtilizationRate(carId, days = 90) {
     const lookbackDate = new Date();
     lookbackDate.setDate(lookbackDate.getDate() - days);
 
-    // Get all contracts for this car in the lookback period
     const contracts = await prisma.contract.findMany({
       where: {
         carId,
@@ -73,7 +94,6 @@ export async function updateCarUtilizationRate(carId, days = 90) {
     });
 
     if (contracts.length === 0) {
-      // No contracts in this period
       await prisma.car.update({
         where: { id: carId },
         data: {
@@ -84,23 +104,20 @@ export async function updateCarUtilizationRate(carId, days = 90) {
       return 0;
     }
 
-    // Calculate total days the car was rented
     let totalRentedDays = 0;
-    contracts.forEach(contract => {
+    contracts.forEach((contract) => {
       const start = Math.max(contract.startDate.getTime(), lookbackDate.getTime());
       const end = Math.min(contract.endDate.getTime(), Date.now());
       const rentedDays = Math.ceil((end - start) / (1000 * 60 * 60 * 24));
       totalRentedDays += Math.max(0, rentedDays);
     });
 
-    // Calculate utilization rate
     const utilizationRate = totalRentedDays / days;
 
-    // Update the car record
     await prisma.car.update({
       where: { id: carId },
       data: {
-        utilizationRate: Math.min(1.0, utilizationRate), // Cap at 100%
+        utilizationRate: Math.min(1.0, utilizationRate),
         lastUtilizationUpdate: new Date(),
       },
     });
@@ -142,23 +159,17 @@ export async function updateAllCarUtilizationRates() {
  */
 export function getMaintenanceMultiplier(car) {
   if (!car.maintenanceScore) {
-    return 1.0; // No data
-  }
-
-  // Excellent condition (95-100) - slight premium
-  if (car.maintenanceScore >= 95) {
-    return 1.05; // 5% premium for perfect condition
-  }
-  // Good condition (85-95) - normal
-  else if (car.maintenanceScore >= 85) {
     return 1.0;
   }
-  // Fair condition (70-85) - slight discount
-  else if (car.maintenanceScore >= 70) {
-    return 0.95; // 5% discount
+
+  if (car.maintenanceScore >= 95) {
+    return 1.05;
   }
-  // Poor condition (< 70) - larger discount
-  else {
-    return 0.85; // 15% discount
+  if (car.maintenanceScore >= 85) {
+    return 1.0;
   }
+  if (car.maintenanceScore >= 70) {
+    return 0.95;
+  }
+  return 0.85;
 }

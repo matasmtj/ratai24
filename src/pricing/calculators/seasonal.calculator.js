@@ -16,27 +16,23 @@ const prisma = new PrismaClient();
 export async function calculateSeasonalMultiplier(startDate, duration, cityId = null) {
   let multiplier = 1.0;
 
-  // 1. Check for custom seasonal factors in database
+  // 1. Custom seasonal factors from admin — define the full seasonal effect (no extra weekend/holiday stacking)
   const customFactors = await getActiveSeasonalFactors(startDate, cityId);
   if (customFactors.length > 0) {
-    // Apply the highest multiplier if multiple factors match
-    const maxCustomMultiplier = Math.max(...customFactors.map(f => f.multiplier));
-    multiplier *= maxCustomMultiplier;
-  } else {
-    // 2. Apply default seasonal logic
+    const combined = customFactors.reduce((acc, f) => acc * f.multiplier, 1.0);
+    return combined;
+  }
+
+  // 2. Default seasonal logic (only when no DB rule applies)
+  {
     const month = startDate.getMonth(); // 0-11
-    
-    // Summer season (June, July, August) - peak travel
+
     if (month >= 5 && month <= 7) {
-      multiplier *= 1.3; // 30% premium
-    }
-    // Winter low season (January, February, March)
-    else if (month >= 0 && month <= 2) {
-      multiplier *= 0.85; // 15% discount
-    }
-    // Spring/Fall shoulder seasons
-    else {
-      multiplier *= 1.0; // Normal pricing
+      multiplier *= 1.3;
+    } else if (month >= 0 && month <= 2) {
+      multiplier *= 0.85;
+    } else {
+      multiplier *= 1.0;
     }
   }
 

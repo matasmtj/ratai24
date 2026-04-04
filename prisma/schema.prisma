@@ -50,6 +50,10 @@ model Car {
   utilizationRate       Float?    @default(0)               // Cached value, updated daily
   averageRevenuePerDay  Float?                              // Rolling average
   lastUtilizationUpdate DateTime?
+  /// When false, utilization does not change price (multiplier treated as 1.0).
+  applyUtilizationPricing Boolean @default(true)
+  /// If set (e.g. 1.0), always use this as the utilization multiplier instead of the automatic table.
+  utilizationMultiplierOverride Float?
   
   // Maintenance status affects pricing
   lastMaintenanceDate   DateTime?
