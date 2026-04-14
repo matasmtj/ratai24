@@ -181,6 +181,13 @@ export async function getPricingAnalytics(req, res) {
             },
           },
         },
+        pricingSnapshot: {
+          select: {
+            basePrice: true,
+            calculatedPrice: true,
+            finalPrice: true,
+          },
+        },
       },
       orderBy: {
         endDate: 'desc',
@@ -221,22 +228,32 @@ export async function getPricingAnalytics(req, res) {
       : 0;
 
     // Contracts with dynamic pricing breakdown
-    const contractsWithPricing = contracts.filter(c => c.dynamicPrice !== null);
+    const contractsWithPricing = contracts.filter((c) => c.dynamicPrice !== null || c.pricingSnapshot !== null);
 
-    // Calculate pricing impact (dynamic vs base)
+    // Calculate pricing impact (final paid price vs base price)
     let totalBaseRevenue = 0;
-    let totalDynamicRevenue = 0;
-    contractsWithPricing.forEach(c => {
-      if (c.basePrice && c.dynamicPrice) {
-        const days = Math.ceil((new Date(c.endDate) - new Date(c.startDate)) / (1000 * 60 * 60 * 24));
-        totalBaseRevenue += c.basePrice * days;
-        totalDynamicRevenue += c.dynamicPrice * days;
-      }
+    let totalFinalRevenue = 0;
+    contractsWithPricing.forEach((c) => {
+      const days = Math.max(
+        1,
+        Math.ceil((new Date(c.endDate) - new Date(c.startDate)) / (1000 * 60 * 60 * 24))
+      );
+      const basePerDay = c.basePrice ?? c.pricingSnapshot?.basePrice ?? null;
+      const finalPerDay =
+        c.finalPrice ??
+        c.dynamicPrice ??
+        c.pricingSnapshot?.finalPrice ??
+        c.pricingSnapshot?.calculatedPrice ??
+        null;
+      if (basePerDay == null || finalPerDay == null) return;
+      totalBaseRevenue += basePerDay * days;
+      totalFinalRevenue += finalPerDay * days;
     });
 
-    const pricingImpact = totalBaseRevenue > 0
-      ? ((totalDynamicRevenue - totalBaseRevenue) / totalBaseRevenue) * 100
-      : 0;
+    const pricingImpact =
+      totalBaseRevenue > 0
+        ? ((totalFinalRevenue - totalBaseRevenue) / totalBaseRevenue) * 100
+        : 0;
 
     // ========== PRICING SNAPSHOTS (for pricing algorithm insights) ==========
     const snapshots = await prisma.pricingSnapshot.findMany({

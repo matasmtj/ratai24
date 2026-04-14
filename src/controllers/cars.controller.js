@@ -14,6 +14,30 @@ const Gearbox  = ['MANUAL', 'AUTOMATIC'];
 const BodyType = ['SEDAN', 'HATCHBACK', 'SUV', 'WAGON', 'COUPE', 'CONVERTIBLE', 'VAN', 'PICKUP'];
 const CarState = ['AVAILABLE', 'LEASED', 'MAINTENANCE'];
 
+async function attachOccupiedToday(cars) {
+  if (!Array.isArray(cars) || cars.length === 0) return cars;
+
+  const carIds = cars.map((car) => car.id);
+  const todayStart = new Date();
+  todayStart.setHours(0, 0, 0, 0);
+  const tomorrowStart = new Date(todayStart);
+  tomorrowStart.setDate(tomorrowStart.getDate() + 1);
+
+  const occupiedRows = await prisma.contract.findMany({
+    where: {
+      carId: { in: carIds },
+      state: { in: ['DRAFT', 'ACTIVE'] },
+      startDate: { lt: tomorrowStart },
+      endDate: { gt: todayStart },
+    },
+    select: { carId: true },
+    distinct: ['carId'],
+  });
+
+  const occupiedTodayIds = new Set(occupiedRows.map((row) => row.carId));
+  return cars.map((car) => ({ ...car, occupiedToday: occupiedTodayIds.has(car.id) }));
+}
+
 const carPublic = {
   id: true,
   vin: true,
@@ -67,7 +91,8 @@ export const listCars = async (req, res, next) => {
       : carPublic;
     
     const items = await prisma.car.findMany({ where, select: selectFields });
-    res.json(items);
+    const withOccupancy = await attachOccupiedToday(items);
+    res.json(withOccupancy);
   } catch (e) { next(e); }
 };
 
@@ -85,7 +110,8 @@ export const listCarsForSale = async (req, res, next) => {
     const selectFields = { ...carPublic, numberPlate: false };
     
     const items = await prisma.car.findMany({ where, select: selectFields });
-    res.json(items);
+    const withOccupancy = await attachOccupiedToday(items);
+    res.json(withOccupancy);
   } catch (e) { next(e); }
 };
 
@@ -100,7 +126,8 @@ export const listCarsForLease = async (req, res, next) => {
     }
     
     const items = await prisma.car.findMany({ where, select: carPublic });
-    res.json(items);
+    const withOccupancy = await attachOccupiedToday(items);
+    res.json(withOccupancy);
   } catch (e) { next(e); }
 };
 
@@ -114,7 +141,8 @@ export const getCar = async (req, res, next) => {
     if (car.state === 'MAINTENANCE' && req.user?.role !== 'ADMIN') {
       throw notFound('Car not found');
     }
-    res.json(car);
+    const [carWithOccupancy] = await attachOccupiedToday([car]);
+    res.json(carWithOccupancy);
   } catch (e) { next(e); }
 };
 

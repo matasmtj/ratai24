@@ -1,6 +1,7 @@
 import prisma from '../models/db.js';
 import { badRequest, notFound } from '../errors.js';
 import { rentalEndNeedsPrepDay, nextPrepDayRangeUtc } from '../lib/rentalPrep.js';
+import { calculateDynamicPrice } from '../pricing/pricing.service.js';
 
 const asInt = (v) => { const n = Number(v); return Number.isInteger(n) ? n : null; };
 const asNum = (v) => { const n = Number(v); return Number.isFinite(n) ? n : null; };
@@ -165,14 +166,6 @@ export const createContract = async (req, res, next) => {
       throw badRequest('notes must be a string');
     }
 
-    const MS_PER_DAY = 1000 * 60 * 60 * 24;
-    const days = Math.max(1, Math.ceil(( ed - sd ) / MS_PER_DAY));
-    const totalPrice = days * car.pricePerDay;
-    
-    if (totalPrice < 0) throw badRequest('Calculated totalPrice is negative (invalid dates or pricePerDay)');
-
-    await assertNoCalendarConflict(car.id, sd, ed);
-
     const userId = req.user?.id ?? 1;
     const openReservationsCount = await prisma.contract.count({
       where: {
@@ -183,6 +176,41 @@ export const createContract = async (req, res, next) => {
     if (openReservationsCount >= OPEN_RESERVATION_LIMIT) {
       throw badRequest(`You can have up to ${OPEN_RESERVATION_LIMIT} active or pending reservations at a time`);
     }
+
+    const MS_PER_DAY = 1000 * 60 * 60 * 24;
+    const days = Math.max(1, Math.ceil(( ed - sd ) / MS_PER_DAY));
+
+    await assertNoCalendarConflict(car.id, sd, ed);
+
+    let totalPrice = days * car.pricePerDay;
+    let pricingPayload = {};
+
+    if (car.useDynamicPricing) {
+      const pricing = await calculateDynamicPrice({
+        carId: car.id,
+        startDate: sd,
+        endDate: ed,
+        userId,
+        saveSnapshot: true,
+      });
+
+      totalPrice = pricing.totalPrice;
+      const basePerDay = pricing.basePrice ?? car.pricePerDay;
+      const calculatedPerDay = pricing.breakdown?.dynamicPrice ?? pricing.pricePerDay;
+      const finalPerDay = pricing.pricePerDay;
+
+      pricingPayload = {
+        basePrice: basePerDay,
+        dynamicPrice: calculatedPerDay,
+        finalPrice: finalPerDay,
+        appliedDiscount: basePerDay > 0 ? Math.round(((basePerDay - finalPerDay) / basePerDay) * 10000) / 100 : 0,
+        demandMultiplier: pricing.breakdown?.multipliers?.demand ?? null,
+        seasonalMultiplier: pricing.breakdown?.multipliers?.seasonal ?? null,
+        durationDiscount: pricing.breakdown?.multipliers?.duration ?? null,
+      };
+    }
+
+    if (totalPrice < 0) throw badRequest('Calculated totalPrice is negative (invalid dates or pricePerDay)');
 
     const created = await prisma.contract.create({
       data: {
@@ -197,6 +225,7 @@ export const createContract = async (req, res, next) => {
         ...(notes !== undefined && String(notes).trim() !== ''
           ? { notes: String(notes).trim() }
           : {}),
+        ...pricingPayload,
       }
     });
 

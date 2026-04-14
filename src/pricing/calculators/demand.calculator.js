@@ -109,16 +109,24 @@ export async function getCityDemandMetrics(cityId) {
       },
     });
 
-    const activeContracts = await prisma.contract.count({
+    const todayStart = new Date();
+    todayStart.setHours(0, 0, 0, 0);
+    const tomorrowStart = new Date(todayStart);
+    tomorrowStart.setDate(tomorrowStart.getDate() + 1);
+
+    const occupiedCars = await prisma.contract.findMany({
       where: {
         car: { cityId },
-        state: 'ACTIVE',
-        startDate: { lte: new Date() },
-        endDate: { gte: new Date() },
+        state: { in: ['ACTIVE', 'DRAFT'] },
+        startDate: { lt: tomorrowStart },
+        endDate: { gt: todayStart },
       },
+      select: { carId: true },
+      distinct: ['carId'],
     });
 
-    const availableCars = totalCars - activeContracts;
+    const activeContracts = occupiedCars.length;
+    const availableCars = Math.max(0, totalCars - activeContracts);
     const utilizationRate = totalCars > 0 ? activeContracts / totalCars : 0;
     const supplyRatio = totalCars > 0 ? availableCars / totalCars : 1;
     
