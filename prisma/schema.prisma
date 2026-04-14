@@ -218,12 +218,14 @@ enum ContractState {
 }
 
 model Contact {
-  id              Int                     @id @default(autoincrement())
-  email           String
-  phone           String
-  operationAreas  ContactOperationArea[]
-  createdAt       DateTime                @default(now())
-  updatedAt       DateTime                @updatedAt
+  id                     Int                     @id @default(autoincrement())
+  email                  String
+  phone                  String
+  businessHoursWeekdays  String                  @default("8:00 - 18:00")
+  businessHoursWeekend   String                  @default("9:00 - 15:00")
+  operationAreas         ContactOperationArea[]
+  createdAt              DateTime                @default(now())
+  updatedAt              DateTime                @updatedAt
 }
 
 model ContactOperationArea {

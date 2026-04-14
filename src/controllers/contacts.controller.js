@@ -13,6 +13,7 @@ const isValidPhone = (phone) => {
   const phoneRegex = /^[\d\s\+\-\(\)]{7,}$/;
   return typeof phone === 'string' && phoneRegex.test(phone.trim());
 };
+const isValidBusinessHours = (hours) => typeof hours === 'string' && hours.trim().length > 0;
 
 // GET /contacts - Public endpoint
 // Returns the first (and should be only) contact with all operation areas
@@ -52,6 +53,8 @@ export const getContact = async (req, res, next) => {
       id: contact.id,
       email: contact.email,
       phone: contact.phone,
+      businessHoursWeekdays: contact.businessHoursWeekdays,
+      businessHoursWeekend: contact.businessHoursWeekend,
       operationAreas: operationAreasString, // Comma-separated for frontend compatibility
       operationAreasDetails: contact.operationAreas.map(area => ({
         id: area.id,
@@ -74,7 +77,13 @@ export const getContact = async (req, res, next) => {
 // Creates a new contact with operation areas
 export const createContact = async (req, res, next) => {
   try {
-    const { email, phone, operationAreas } = req.body;
+    const {
+      email,
+      phone,
+      operationAreas,
+      businessHoursWeekdays = '8:00 - 18:00',
+      businessHoursWeekend = '9:00 - 15:00'
+    } = req.body;
 
     // Validation
     if (!isValidEmail(email)) {
@@ -82,6 +91,12 @@ export const createContact = async (req, res, next) => {
     }
     if (!isValidPhone(phone)) {
       throw badRequest('Invalid phone number format (min 7 characters, digits, spaces, +, -, (), allowed)');
+    }
+    if (!isValidBusinessHours(businessHoursWeekdays)) {
+      throw badRequest('businessHoursWeekdays must be a non-empty string');
+    }
+    if (!isValidBusinessHours(businessHoursWeekend)) {
+      throw badRequest('businessHoursWeekend must be a non-empty string');
     }
     if (!Array.isArray(operationAreas) || operationAreas.length === 0) {
       throw badRequest('operationAreas must be a non-empty array');
@@ -117,6 +132,8 @@ export const createContact = async (req, res, next) => {
       data: {
         email: email.trim(),
         phone: phone.trim(),
+        businessHoursWeekdays: businessHoursWeekdays.trim(),
+        businessHoursWeekend: businessHoursWeekend.trim(),
         operationAreas: {
           create: operationAreas.map(area => ({
             cityId: area.cityId,
@@ -148,6 +165,8 @@ export const createContact = async (req, res, next) => {
       id: contact.id,
       email: contact.email,
       phone: contact.phone,
+      businessHoursWeekdays: contact.businessHoursWeekdays,
+      businessHoursWeekend: contact.businessHoursWeekend,
       operationAreas: operationAreasString,
       operationAreasDetails: contact.operationAreas.map(area => ({
         id: area.id,
@@ -170,7 +189,7 @@ export const createContact = async (req, res, next) => {
 // Updates the existing contact (assumes there's only one)
 export const updateContact = async (req, res, next) => {
   try {
-    const { email, phone, operationAreas } = req.body;
+    const { email, phone, operationAreas, businessHoursWeekdays, businessHoursWeekend } = req.body;
 
     // Validation
     if (email !== undefined && !isValidEmail(email)) {
@@ -178,6 +197,12 @@ export const updateContact = async (req, res, next) => {
     }
     if (phone !== undefined && !isValidPhone(phone)) {
       throw badRequest('Invalid phone number format (min 7 characters, digits, spaces, +, -, (), allowed)');
+    }
+    if (businessHoursWeekdays !== undefined && !isValidBusinessHours(businessHoursWeekdays)) {
+      throw badRequest('businessHoursWeekdays must be a non-empty string');
+    }
+    if (businessHoursWeekend !== undefined && !isValidBusinessHours(businessHoursWeekend)) {
+      throw badRequest('businessHoursWeekend must be a non-empty string');
     }
     if (operationAreas !== undefined) {
       if (!Array.isArray(operationAreas)) {
@@ -216,6 +241,8 @@ export const updateContact = async (req, res, next) => {
     const updateData = {};
     if (email !== undefined) updateData.email = email.trim();
     if (phone !== undefined) updateData.phone = phone.trim();
+    if (businessHoursWeekdays !== undefined) updateData.businessHoursWeekdays = businessHoursWeekdays.trim();
+    if (businessHoursWeekend !== undefined) updateData.businessHoursWeekend = businessHoursWeekend.trim();
 
     // If operationAreas is provided, delete old ones and create new ones
     if (operationAreas !== undefined) {
@@ -264,6 +291,8 @@ export const updateContact = async (req, res, next) => {
       id: contact.id,
       email: contact.email,
       phone: contact.phone,
+      businessHoursWeekdays: contact.businessHoursWeekdays,
+      businessHoursWeekend: contact.businessHoursWeekend,
       operationAreas: operationAreasString,
       operationAreasDetails: contact.operationAreas.map(area => ({
         id: area.id,

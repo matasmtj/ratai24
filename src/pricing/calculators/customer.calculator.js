@@ -43,9 +43,9 @@ export function computeLoyaltyFromContracts(contracts) {
     tierDiscountPct = 5;
   }
 
-  const sixtyDaysAgo = new Date();
-  sixtyDaysAgo.setDate(sixtyDaysAgo.getDate() - 60);
-  const recentRental = contracts.some((c) => c.endDate >= sixtyDaysAgo);
+  const fourteenDaysAgo = new Date();
+  fourteenDaysAgo.setDate(fourteenDaysAgo.getDate() - 14);
+  const recentRental = contracts.some((c) => c.endDate >= fourteenDaysAgo);
   let recentActivityBonusPct = 0;
   if (recentRental && tierDiscountPct > 0) {
     recentActivityBonusPct = RECENT_ACTIVITY_BONUS_PCT;

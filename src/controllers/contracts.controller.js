@@ -7,6 +7,7 @@ const asNum = (v) => { const n = Number(v); return Number.isFinite(n) ? n : null
 const isNonEmptyString = (v) => typeof v === 'string' && v.trim().length > 0;
 
 const ContractState = ['DRAFT', 'ACTIVE', 'COMPLETED', 'CANCELLED'];
+const OPEN_RESERVATION_LIMIT = 3;
 
 const isOwnerOrAdmin = (req, userId) => {
   if (!req.user) return true;            // auth off → allow
@@ -173,6 +174,15 @@ export const createContract = async (req, res, next) => {
     await assertNoCalendarConflict(car.id, sd, ed);
 
     const userId = req.user?.id ?? 1;
+    const openReservationsCount = await prisma.contract.count({
+      where: {
+        userId,
+        state: { in: ['DRAFT', 'ACTIVE'] },
+      },
+    });
+    if (openReservationsCount >= OPEN_RESERVATION_LIMIT) {
+      throw badRequest(`You can have up to ${OPEN_RESERVATION_LIMIT} active or pending reservations at a time`);
+    }
 
     const created = await prisma.contract.create({
       data: {

@@ -131,6 +131,9 @@ export const createCar = async (req, res, next) => {
       bodyType, gearbox, state = 'AVAILABLE', odometerKm = 0,
       availableForLease = true, availableForSale = false, salePrice = null, saleDescription = null, colour = null,
       useDynamicPricing = false,
+      basePricePerDay = null,
+      minPricePerDay = null,
+      maxPricePerDay = null,
       applyUtilizationPricing = true,
       utilizationMultiplierOverride = null,
     } = body;
@@ -194,6 +197,22 @@ export const createCar = async (req, res, next) => {
       utilOverride = u;
     }
 
+    const basePriceNum = basePricePerDay === null || basePricePerDay === undefined || basePricePerDay === '' ? null : asNum(basePricePerDay);
+    const minPriceNum = minPricePerDay === null || minPricePerDay === undefined || minPricePerDay === '' ? null : asNum(minPricePerDay);
+    const maxPriceNum = maxPricePerDay === null || maxPricePerDay === undefined || maxPricePerDay === '' ? null : asNum(maxPricePerDay);
+    if (basePriceNum !== null && basePriceNum <= 0) throw badRequest('basePricePerDay must be a positive number');
+    if (minPriceNum !== null && minPriceNum <= 0) throw badRequest('minPricePerDay must be a positive number');
+    if (maxPriceNum !== null && maxPriceNum <= 0) throw badRequest('maxPricePerDay must be a positive number');
+
+    if (useDynamicPricing === true) {
+      if (basePriceNum === null || minPriceNum === null || maxPriceNum === null) {
+        throw badRequest('Dynamic pricing requires basePricePerDay, minPricePerDay and maxPricePerDay');
+      }
+      if (minPriceNum > basePriceNum) throw badRequest('minPricePerDay cannot be greater than basePricePerDay');
+      if (maxPriceNum < basePriceNum) throw badRequest('maxPricePerDay cannot be lower than basePricePerDay');
+      if (minPriceNum > maxPriceNum) throw badRequest('minPricePerDay cannot be greater than maxPricePerDay');
+    }
+
     const created = await prisma.car.create({
       data: {
         vin: vin.trim().toUpperCase(),
@@ -205,6 +224,9 @@ export const createCar = async (req, res, next) => {
         availableForLease: availableForLease === true,
         availableForSale: availableForSale === true,
         useDynamicPricing: useDynamicPricing === true,
+        basePricePerDay: basePriceNum,
+        minPricePerDay: minPriceNum,
+        maxPricePerDay: maxPriceNum,
         applyUtilizationPricing: applyUtilizationPricing !== false,
         utilizationMultiplierOverride: utilOverride,
         salePrice: salePriceNum,
@@ -297,6 +319,33 @@ export const updateCar = async (req, res, next) => {
     if (data.availableForLease !== undefined) data.availableForLease = data.availableForLease === true;
     if (data.availableForSale !== undefined) data.availableForSale = data.availableForSale === true;
     if (data.useDynamicPricing !== undefined) data.useDynamicPricing = data.useDynamicPricing === true;
+    if (data.basePricePerDay !== undefined) {
+      if (data.basePricePerDay === null || data.basePricePerDay === '') {
+        data.basePricePerDay = null;
+      } else {
+        const p = asNum(data.basePricePerDay);
+        if (p === null || p <= 0) throw badRequest('basePricePerDay must be a positive number');
+        data.basePricePerDay = p;
+      }
+    }
+    if (data.minPricePerDay !== undefined) {
+      if (data.minPricePerDay === null || data.minPricePerDay === '') {
+        data.minPricePerDay = null;
+      } else {
+        const p = asNum(data.minPricePerDay);
+        if (p === null || p <= 0) throw badRequest('minPricePerDay must be a positive number');
+        data.minPricePerDay = p;
+      }
+    }
+    if (data.maxPricePerDay !== undefined) {
+      if (data.maxPricePerDay === null || data.maxPricePerDay === '') {
+        data.maxPricePerDay = null;
+      } else {
+        const p = asNum(data.maxPricePerDay);
+        if (p === null || p <= 0) throw badRequest('maxPricePerDay must be a positive number');
+        data.maxPricePerDay = p;
+      }
+    }
     if (data.applyUtilizationPricing !== undefined) {
       data.applyUtilizationPricing = data.applyUtilizationPricing === true;
     }
@@ -323,6 +372,20 @@ export const updateCar = async (req, res, next) => {
     if (data.engineCapacityL !== undefined && data.engineCapacityL !== null) {
       const ec = asNum(data.engineCapacityL);
       if (ec === null) throw badRequest('engineCapacityL must be a number'); data.engineCapacityL = ec;
+    }
+
+    const effectiveUseDynamicPricing = data.useDynamicPricing !== undefined ? data.useDynamicPricing : exists.useDynamicPricing;
+    const effectiveBasePrice = data.basePricePerDay !== undefined ? data.basePricePerDay : exists.basePricePerDay;
+    const effectiveMinPrice = data.minPricePerDay !== undefined ? data.minPricePerDay : exists.minPricePerDay;
+    const effectiveMaxPrice = data.maxPricePerDay !== undefined ? data.maxPricePerDay : exists.maxPricePerDay;
+
+    if (effectiveUseDynamicPricing) {
+      if (effectiveBasePrice == null || effectiveMinPrice == null || effectiveMaxPrice == null) {
+        throw badRequest('Dynamic pricing requires basePricePerDay, minPricePerDay and maxPricePerDay');
+      }
+      if (effectiveMinPrice > effectiveBasePrice) throw badRequest('minPricePerDay cannot be greater than basePricePerDay');
+      if (effectiveMaxPrice < effectiveBasePrice) throw badRequest('maxPricePerDay cannot be lower than basePricePerDay');
+      if (effectiveMinPrice > effectiveMaxPrice) throw badRequest('minPricePerDay cannot be greater than maxPricePerDay');
     }
 
     // trim/normalize strings
