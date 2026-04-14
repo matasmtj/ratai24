@@ -10,6 +10,22 @@ import * as pricingService from './pricing.service.js';
 import { getCityDemandMetrics } from './calculators/demand.calculator.js';
 import { getCustomerLoyaltyInfo } from './calculators/customer.calculator.js';
 
+function parsePositiveInt(value, fieldName) {
+  const parsed = Number(value);
+  if (!Number.isInteger(parsed) || parsed <= 0) {
+    throw new Error(`${fieldName} must be a positive integer`);
+  }
+  return parsed;
+}
+
+function parseDateValue(value, fieldName) {
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) {
+    throw new Error(`${fieldName} must be a valid date`);
+  }
+  return parsed;
+}
+
 /**
  * Calculate price for a specific car and date range
  * POST /api/pricing/calculate
@@ -25,14 +41,9 @@ export async function calculatePrice(req, res) {
       });
     }
 
-    const start = new Date(startDate);
-    const end = new Date(endDate);
-
-    if (isNaN(start.getTime()) || isNaN(end.getTime())) {
-      return res.status(400).json({
-        error: 'Invalid date format',
-      });
-    }
+    const parsedCarId = parsePositiveInt(carId, 'carId');
+    const start = parseDateValue(startDate, 'startDate');
+    const end = parseDateValue(endDate, 'endDate');
 
     if (start >= end) {
       return res.status(400).json({
@@ -42,16 +53,19 @@ export async function calculatePrice(req, res) {
 
     // Calculate price
     const result = await pricingService.calculateDynamicPrice({
-      carId: parseInt(carId),
+      carId: parsedCarId,
       startDate: start,
       endDate: end,
-      userId: userId ? parseInt(userId) : null,
+      userId: userId ? parsePositiveInt(userId, 'userId') : null,
       saveSnapshot: true, // Save for analytics
     });
 
     res.json(result);
   } catch (error) {
     console.error('Error in calculatePrice:', error);
+    if (error instanceof Error && (error.message.includes('carId') || error.message.includes('startDate') || error.message.includes('endDate') || error.message.includes('userId'))) {
+      return res.status(400).json({ error: error.message });
+    }
     res.status(500).json({
       error: error.message || 'Failed to calculate price',
     });
@@ -66,21 +80,25 @@ export async function getPricePreview(req, res) {
   try {
     const { carId } = req.params;
     const { startDate, endDate, duration } = req.query;
+    const parsedCarId = parsePositiveInt(carId, 'carId');
 
     // Default to 7-day rental starting today
-    let start = startDate ? new Date(startDate) : new Date();
+    let start = startDate ? parseDateValue(startDate, 'startDate') : new Date();
     let end;
 
     if (endDate) {
-      end = new Date(endDate);
+      end = parseDateValue(endDate, 'endDate');
     } else {
-      const days = duration ? parseInt(duration) : 7;
+      const days = duration ? parsePositiveInt(duration, 'duration') : 7;
       end = new Date(start);
       end.setDate(end.getDate() + days);
     }
+    if (start >= end) {
+      return res.status(400).json({ error: 'endDate must be after startDate' });
+    }
 
     const result = await pricingService.calculateDynamicPrice({
-      carId: parseInt(carId),
+      carId: parsedCarId,
       startDate: start,
       endDate: end,
       userId: req.user?.id || null,
@@ -89,7 +107,7 @@ export async function getPricePreview(req, res) {
 
     // Get car pricing configuration
     const car = await prisma.car.findUnique({
-      where: { id: parseInt(carId) },
+      where: { id: parsedCarId },
       select: {
         basePricePerDay: true,
         minPricePerDay: true,
@@ -115,6 +133,9 @@ export async function getPricePreview(req, res) {
     });
   } catch (error) {
     console.error('Error in getPricePreview:', error);
+    if (error instanceof Error && (error.message.includes('carId') || error.message.includes('startDate') || error.message.includes('endDate') || error.message.includes('duration'))) {
+      return res.status(400).json({ error: error.message });
+    }
     res.status(500).json({
       error: error.message || 'Failed to get price preview',
     });
@@ -128,10 +149,14 @@ export async function getPricePreview(req, res) {
 export async function getCityDemand(req, res) {
   try {
     const { cityId } = req.params;
-    const metrics = await getCityDemandMetrics(parseInt(cityId));
+    const parsedCityId = parsePositiveInt(cityId, 'cityId');
+    const metrics = await getCityDemandMetrics(parsedCityId);
     res.json(metrics);
   } catch (error) {
     console.error('Error in getCityDemand:', error);
+    if (error instanceof Error && error.message.includes('cityId')) {
+      return res.status(400).json({ error: error.message });
+    }
     res.status(500).json({
       error: 'Failed to get demand metrics',
     });
@@ -180,11 +205,15 @@ export async function bulkCalculatePrice(req, res) {
       });
     }
 
-    const start = new Date(startDate);
-    const end = new Date(endDate);
+    const parsedCarIds = carIds.map((id) => parsePositiveInt(id, 'carIds'));
+    const start = parseDateValue(startDate, 'startDate');
+    const end = parseDateValue(endDate, 'endDate');
+    if (start >= end) {
+      return res.status(400).json({ error: 'endDate must be after startDate' });
+    }
 
     const prices = await pricingService.getBulkPricePreviews(
-      carIds.map(id => parseInt(id)),
+      parsedCarIds,
       start,
       end
     );
@@ -192,6 +221,9 @@ export async function bulkCalculatePrice(req, res) {
     res.json(prices);
   } catch (error) {
     console.error('Error in bulkCalculatePrice:', error);
+    if (error instanceof Error && (error.message.includes('carIds') || error.message.includes('startDate') || error.message.includes('endDate'))) {
+      return res.status(400).json({ error: error.message });
+    }
     res.status(500).json({
       error: 'Failed to calculate bulk prices',
     });

@@ -14,6 +14,134 @@ import {
 } from './calculators/seasonal.calculator.js';
 import { runAllPricingJobs } from './pricing.jobs.js';
 
+function parseOptionalNumber(value, fieldName) {
+  if (value === undefined || value === null || value === '') return undefined;
+  const n = Number(value);
+  if (!Number.isFinite(n)) {
+    throw new Error(`${fieldName} must be a valid number`);
+  }
+  return n;
+}
+
+function parseOptionalInt(value, fieldName) {
+  if (value === undefined || value === null || value === '') return undefined;
+  const n = Number(value);
+  if (!Number.isInteger(n)) {
+    throw new Error(`${fieldName} must be an integer`);
+  }
+  return n;
+}
+
+function parseQueryDateOrDefault(value, fallback, fieldName) {
+  if (value === undefined || value === null || value === '') return fallback;
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    throw new Error(`${fieldName} must be a valid date`);
+  }
+  return date;
+}
+
+function parseOptionalCityId(value) {
+  if (value === undefined || value === null || value === '') return null;
+  const cityId = Number(value);
+  if (!Number.isInteger(cityId) || cityId <= 0) {
+    throw new Error('cityId must be a positive integer');
+  }
+  return cityId;
+}
+
+function buildPricingRulePayload(body, { partial = false } = {}) {
+  const payload = {};
+
+  if (!partial || body.name !== undefined) {
+    const name = String(body?.name ?? '').trim();
+    if (!name) throw new Error('name is required');
+    payload.name = name;
+  }
+
+  if (body.description !== undefined) {
+    const description = String(body.description ?? '').trim();
+    payload.description = description === '' ? null : description;
+  } else if (!partial) {
+    payload.description = null;
+  }
+
+  if (body.carId !== undefined) {
+    payload.carId = parseOptionalInt(body.carId, 'carId') ?? null;
+  } else if (!partial) {
+    payload.carId = null;
+  }
+
+  if (body.cityId !== undefined) {
+    payload.cityId = parseOptionalInt(body.cityId, 'cityId') ?? null;
+  } else if (!partial) {
+    payload.cityId = null;
+  }
+
+  if (body.startDate !== undefined) {
+    payload.startDate = body.startDate ? new Date(body.startDate) : null;
+  } else if (!partial) {
+    payload.startDate = null;
+  }
+
+  if (body.endDate !== undefined) {
+    payload.endDate = body.endDate ? new Date(body.endDate) : null;
+  } else if (!partial) {
+    payload.endDate = null;
+  }
+
+  if (payload.startDate && Number.isNaN(payload.startDate.getTime())) {
+    throw new Error('startDate must be a valid date');
+  }
+  if (payload.endDate && Number.isNaN(payload.endDate.getTime())) {
+    throw new Error('endDate must be a valid date');
+  }
+  if (payload.startDate && payload.endDate && payload.endDate < payload.startDate) {
+    throw new Error('endDate must be on or after startDate');
+  }
+
+  if (body.fixedPrice !== undefined) {
+    const fixedPrice = parseOptionalNumber(body.fixedPrice, 'fixedPrice');
+    if (fixedPrice !== undefined && fixedPrice <= 0) {
+      throw new Error('fixedPrice must be greater than 0');
+    }
+    payload.fixedPrice = fixedPrice ?? null;
+  } else if (!partial) {
+    payload.fixedPrice = null;
+  }
+
+  if (body.multiplier !== undefined) {
+    const multiplier = parseOptionalNumber(body.multiplier, 'multiplier');
+    if (multiplier !== undefined && (multiplier < 0.1 || multiplier > 3)) {
+      throw new Error('multiplier must be between 0.1 and 3');
+    }
+    payload.multiplier = multiplier ?? null;
+  } else if (!partial) {
+    payload.multiplier = null;
+  }
+
+  if (!partial || body.priority !== undefined) {
+    const priority = parseOptionalInt(body.priority, 'priority');
+    payload.priority = priority ?? 10;
+  }
+
+  if (!partial || body.isActive !== undefined) {
+    payload.isActive = body.isActive !== undefined ? Boolean(body.isActive) : true;
+  }
+
+  const shouldValidatePricingFieldPresence =
+    !partial || body.fixedPrice !== undefined || body.multiplier !== undefined;
+  if (
+    shouldValidatePricingFieldPresence &&
+    (payload.fixedPrice ?? null) === null &&
+    (payload.multiplier ?? null) === null
+  ) {
+    throw new Error('Provide at least one: fixedPrice or multiplier');
+  }
+
+  return payload;
+}
+
 /**
  * Get pricing analytics dashboard data
  * GET /api/admin/pricing/analytics
@@ -21,18 +149,21 @@ import { runAllPricingJobs } from './pricing.jobs.js';
 export async function getPricingAnalytics(req, res) {
   try {
     const { startDate, endDate, cityId } = req.query;
-
-    const start = startDate ? new Date(startDate) : new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
-    const end = endDate ? new Date(endDate) : new Date();
+    const parsedCityId = parseOptionalCityId(cityId);
+    const start = parseQueryDateOrDefault(startDate, new Date(Date.now() - 30 * 24 * 60 * 60 * 1000), 'startDate');
+    const end = parseQueryDateOrDefault(endDate, new Date(), 'endDate');
+    if (end < start) {
+      return res.status(400).json({ error: 'endDate must be on or after startDate' });
+    }
 
     // ========== ACTUAL REVENUE from completed contracts ==========
     const contracts = await prisma.contract.findMany({
       where: {
         state: 'COMPLETED',
         endDate: { gte: start, lte: end },
-        ...(cityId && {
+        ...(parsedCityId && {
           car: {
-            cityId: parseInt(cityId),
+            cityId: parsedCityId,
           },
         }),
       },
@@ -73,7 +204,7 @@ export async function getPricingAnalytics(req, res) {
     const totalCars = await prisma.car.count({
       where: {
         availableForLease: true,
-        ...(cityId && { cityId: parseInt(cityId) }),
+        ...(parsedCityId && { cityId: parsedCityId }),
       },
     });
     
@@ -81,7 +212,7 @@ export async function getPricingAnalytics(req, res) {
       where: {
         availableForLease: true,
         useDynamicPricing: true,
-        ...(cityId && { cityId: parseInt(cityId) }),
+        ...(parsedCityId && { cityId: parsedCityId }),
       },
     });
     
@@ -111,7 +242,7 @@ export async function getPricingAnalytics(req, res) {
     const snapshots = await prisma.pricingSnapshot.findMany({
       where: {
         createdAt: { gte: start, lte: end },
-        ...(cityId && { cityId: parseInt(cityId) }),
+        ...(parsedCityId && { cityId: parsedCityId }),
       },
       include: {
         car: {
@@ -155,7 +286,7 @@ export async function getPricingAnalytics(req, res) {
 
       // Dynamic pricing performance
       pricingPerformance: {
-        dynamicPricingAdoption: Math.round(dynamicPricingUsage * 100) / 100, // % of cars with dynamic pricing enabled
+        dynamicPricingUsage: Math.round(dynamicPricingUsage * 100) / 100, // % of cars with dynamic pricing enabled
         totalCars,
         dynamicPricingCars,
         contractsWithPricing: contractsWithPricing.length,
@@ -185,6 +316,9 @@ export async function getPricingAnalytics(req, res) {
     });
   } catch (error) {
     console.error('Error in getPricingAnalytics:', error);
+    if (error instanceof Error && (error.message.includes('startDate') || error.message.includes('endDate') || error.message.includes('cityId'))) {
+      return res.status(400).json({ error: error.message });
+    }
     res.status(500).json({
       error: 'Failed to get pricing analytics',
     });
@@ -198,18 +332,21 @@ export async function getPricingAnalytics(req, res) {
 export async function getRevenueAnalytics(req, res) {
   try {
     const { startDate, endDate, cityId, groupBy } = req.query;
-
-    const start = startDate ? new Date(startDate) : new Date(Date.now() - 90 * 24 * 60 * 60 * 1000); // 90 days default
-    const end = endDate ? new Date(endDate) : new Date();
+    const parsedCityId = parseOptionalCityId(cityId);
+    const start = parseQueryDateOrDefault(startDate, new Date(Date.now() - 90 * 24 * 60 * 60 * 1000), 'startDate'); // 90 days default
+    const end = parseQueryDateOrDefault(endDate, new Date(), 'endDate');
+    if (end < start) {
+      return res.status(400).json({ error: 'endDate must be on or after startDate' });
+    }
 
     // Get all contracts (not just completed, to show pipeline)
     const allContracts = await prisma.contract.findMany({
       where: {
         // Filter by when the rental ended (completed in this period)
         endDate: { gte: start, lte: end },
-        ...(cityId && {
+        ...(parsedCityId && {
           car: {
-            cityId: parseInt(cityId),
+            cityId: parsedCityId,
           },
         }),
       },
@@ -306,6 +443,9 @@ export async function getRevenueAnalytics(req, res) {
     });
   } catch (error) {
     console.error('Error in getRevenueAnalytics:', error);
+    if (error instanceof Error && (error.message.includes('startDate') || error.message.includes('endDate') || error.message.includes('cityId'))) {
+      return res.status(400).json({ error: error.message });
+    }
     res.status(500).json({
       error: 'Failed to get revenue analytics',
     });
@@ -319,11 +459,12 @@ export async function getRevenueAnalytics(req, res) {
 export async function getCarPerformance(req, res) {
   try {
     const { cityId } = req.query;
+    const parsedCityId = parseOptionalCityId(cityId);
 
     const cars = await prisma.car.findMany({
       where: {
         availableForLease: true,
-        ...(cityId && { cityId: parseInt(cityId) }),
+        ...(parsedCityId && { cityId: parsedCityId }),
       },
       select: {
         id: true,
@@ -368,6 +509,9 @@ export async function getCarPerformance(req, res) {
     });
   } catch (error) {
     console.error('Error in getCarPerformance:', error);
+    if (error instanceof Error && error.message.includes('cityId')) {
+      return res.status(400).json({ error: error.message });
+    }
     res.status(500).json({
       error: 'Failed to get car performance data',
     });
@@ -480,13 +624,17 @@ export async function updateCarPricingConfig(req, res) {
  */
 export async function createPricingRule(req, res) {
   try {
+    const data = buildPricingRulePayload(req.body ?? {});
     const rule = await prisma.pricingRule.create({
-      data: req.body,
+      data,
     });
 
     res.status(201).json(rule);
   } catch (error) {
     console.error('Error in createPricingRule:', error);
+    if (error instanceof Error) {
+      return res.status(400).json({ error: error.message });
+    }
     res.status(500).json({
       error: 'Failed to create pricing rule',
     });
@@ -535,14 +683,18 @@ export async function getPricingRules(req, res) {
 export async function updatePricingRule(req, res) {
   try {
     const { id } = req.params;
+    const data = buildPricingRulePayload(req.body ?? {}, { partial: true });
     const rule = await prisma.pricingRule.update({
       where: { id: parseInt(id) },
-      data: req.body,
+      data,
     });
 
     res.json(rule);
   } catch (error) {
     console.error('Error in updatePricingRule:', error);
+    if (error instanceof Error) {
+      return res.status(400).json({ error: error.message });
+    }
     res.status(500).json({
       error: 'Failed to update pricing rule',
     });

@@ -15,19 +15,19 @@ export function calculateDurationMultiplier(days) {
     return 1.0;
   } else if (days <= 6) {
     // 3-6 days - small discount
-    return 0.95; // 5% discount
+    return 0.98; // 2% discount
   } else if (days <= 13) {
     // 1-2 weeks - moderate discount
-    return 0.88; // 12% discount
+    return 0.95; // 5% discount
   } else if (days <= 20) {
     // 2-3 weeks - good discount
-    return 0.82; // 18% discount
+    return 0.92; // 8% discount
   } else if (days <= 29) {
     // 3-4 weeks - better discount
-    return 0.75; // 25% discount
+    return 0.9; // 10% discount
   } else {
     // Monthly+ rental - best rate
-    return 0.65; // 35% discount
+    return 0.88; // 12% discount
   }
 }
 

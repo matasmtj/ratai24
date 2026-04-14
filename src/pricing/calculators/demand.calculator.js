@@ -11,7 +11,7 @@ const prisma = new PrismaClient();
  * @param {number} cityId - City ID
  * @param {Date} startDate - Rental start date
  * @param {Date} endDate - Rental end date
- * @returns {Promise<number>} Demand multiplier (0.6 - 2.5)
+ * @returns {Promise<number>} Demand multiplier (0.85 - 1.4)
  */
 export async function calculateDemandMultiplier(cityId, startDate, endDate) {
   try {
@@ -62,21 +62,21 @@ export async function calculateDemandMultiplier(cityId, startDate, endDate) {
     let demandScore;
 
     if (supplyRatio >= 0.7) {
-      // 70%+ available: Low demand - discount pricing
-      demandScore = 0.7 + (supplyRatio - 0.7) * 0.3; // 0.7 - 0.79
+      // 70%+ available: Low demand - mild discount
+      demandScore = 0.9 + (supplyRatio - 0.7) * 0.5; // 0.9 - 1.0
     } else if (supplyRatio >= 0.4) {
       // 40-70% available: Normal demand
-      demandScore = 0.9 + (0.7 - supplyRatio) * 0.67; // 0.9 - 1.1
+      demandScore = 1.0 + (0.7 - supplyRatio) * 0.5; // 1.0 - 1.15
     } else if (supplyRatio >= 0.2) {
-      // 20-40% available: High demand - premium pricing
-      demandScore = 1.2 + (0.4 - supplyRatio) * 2.5; // 1.2 - 1.7
+      // 20-40% available: High demand - moderate premium
+      demandScore = 1.15 + (0.4 - supplyRatio) * 0.75; // 1.15 - 1.3
     } else {
       // Less than 20% available: Very high demand
-      demandScore = 1.8 + (0.2 - supplyRatio) * 3.5; // 1.8 - 2.5
+      demandScore = 1.3 + (0.2 - supplyRatio) * 0.5; // 1.3 - 1.4
     }
 
-    // Clamp between 0.6 and 2.5
-    return Math.max(0.6, Math.min(2.5, demandScore));
+    // Clamp between 0.85 and 1.4
+    return Math.max(0.85, Math.min(1.4, demandScore));
   } catch (error) {
     console.error('Error calculating demand multiplier:', error);
     return 1.0; // Fallback to neutral multiplier
@@ -123,7 +123,7 @@ export async function getCityDemandMetrics(cityId) {
     const supplyRatio = totalCars > 0 ? availableCars / totalCars : 1;
     
     // Simple demand score calculation
-    const demandScore = Math.max(0.6, Math.min(2.5, 2.5 - supplyRatio * 2));
+    const demandScore = Math.max(0.85, Math.min(1.4, 1.4 - supplyRatio * 0.5));
 
     // Upsert metrics
     const updatedMetrics = await prisma.cityDemandMetrics.upsert({

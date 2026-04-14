@@ -35,16 +35,16 @@ export function calculateUtilizationMultiplierForCar(car) {
   const utilizationRate = car.utilizationRate;
 
   if (utilizationRate < 0.3) {
-    return 0.75;
+    return 0.9;
   }
   if (utilizationRate < 0.5) {
-    return 0.85;
+    return 0.95;
   }
   if (utilizationRate > 0.9) {
-    return 1.25;
+    return 1.1;
   }
   if (utilizationRate > TARGET_UTILIZATION) {
-    return 1.1;
+    return 1.05;
   }
   return 1.0;
 }
