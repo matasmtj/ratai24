@@ -4,16 +4,48 @@ import { config } from '../config.js';
  * Sends password reset email via Resend (https://resend.com) when RESEND_API_KEY is set.
  * Otherwise logs the link (local development).
  */
-export async function sendPasswordResetEmail({ to, resetUrl }) {
-  const { resendApiKey, emailFrom } = config;
+const RESET_EMAIL_COPY = {
+  lt: {
+    subject: 'Atstatykite savo slaptažodį',
+    cta: 'Nustatyti naują slaptažodį',
+    intro: 'Gavome prašymą atstatyti jūsų slaptažodį.',
+    expiry: 'Ši nuoroda galioja',
+    ignore: 'Jei šio prašymo neteikėte, galite ignoruoti šį laišką.',
+  },
+  en: {
+    subject: 'Reset your password',
+    cta: 'Set a new password',
+    intro: 'You requested a password reset.',
+    expiry: 'This link expires in',
+    ignore: 'If you did not request this, you can ignore this email.',
+  },
+  ru: {
+    subject: 'Сброс пароля',
+    cta: 'Установить новый пароль',
+    intro: 'Вы запросили сброс пароля.',
+    expiry: 'Ссылка действительна',
+    ignore: 'Если вы не запрашивали это, просто проигнорируйте письмо.',
+  },
+};
 
-  const subject = 'Reset your password';
-  const text = `You requested a password reset. Open this link to choose a new password (valid ${config.passwordResetExpiresHours} hour(s)):\n\n${resetUrl}\n\nIf you did not request this, you can ignore this email.`;
+function normalizeLanguage(value) {
+  if (typeof value !== 'string') return 'lt';
+  const normalized = value.trim().toLowerCase();
+  return normalized === 'en' || normalized === 'ru' ? normalized : 'lt';
+}
+
+export async function sendPasswordResetEmail({ to, resetUrl, language = 'lt' }) {
+  const { resendApiKey, emailFrom } = config;
+  const lang = normalizeLanguage(language);
+  const copy = RESET_EMAIL_COPY[lang];
+
+  const subject = copy.subject;
+  const text = `${copy.intro} ${copy.expiry} ${config.passwordResetExpiresHours} h:\n\n${resetUrl}\n\n${copy.ignore}`;
   const html = `
-    <p>You requested a password reset.</p>
-    <p><a href="${resetUrl}">Set a new password</a></p>
-    <p>This link expires in ${config.passwordResetExpiresHours} hour(s).</p>
-    <p>If you did not request this, you can ignore this email.</p>
+    <p>${copy.intro}</p>
+    <p><a href="${resetUrl}">${copy.cta}</a></p>
+    <p>${copy.expiry} ${config.passwordResetExpiresHours} h.</p>
+    <p>${copy.ignore}</p>
   `.trim();
 
   if (!resendApiKey) {

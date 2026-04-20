@@ -9,7 +9,12 @@
     "db:push": "prisma db push",
     "db:seed": "node prisma/seed.js",
     "postinstall": "prisma generate",
-    "postman:demo": "bash demo.sh"
+    "postman:demo": "bash demo.sh",
+    "test": "cross-env NODE_OPTIONS=--experimental-vm-modules jest",
+    "test:watch": "cross-env NODE_OPTIONS=--experimental-vm-modules jest --watch",
+    "test:coverage": "cross-env NODE_OPTIONS=--experimental-vm-modules jest --coverage",
+    "test:unit": "cross-env NODE_OPTIONS=--experimental-vm-modules jest __tests__/unit",
+    "test:integration": "cross-env NODE_OPTIONS=--experimental-vm-modules jest __tests__/integration"
   },
   "keywords": [],
   "author": "",
@@ -30,8 +35,13 @@
     "yamljs": "^0.3.0"
   },
   "devDependencies": {
+    "cross-env": "^10.1.0",
+    "jest": "^30.3.0",
+    "jest-html-reporters": "^3.1.7",
+    "jest-mock-extended": "^4.0.0",
     "nodemon": "^3.1.10",
     "prisma": "^6.16.2",
+    "supertest": "^7.2.2",
     "swagger-jsdoc": "^6.2.8",
     "swagger-ui-express": "^5.0.1"
   }

@@ -11,6 +11,13 @@ const isValidEmail = (email) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
 const validRoles = ['GUEST', 'USER', 'ADMIN'];
 
 const RESET_MSG = 'We sent a message to that email address.';
+const SUPPORTED_RESET_LANGUAGES = new Set(['lt', 'en', 'ru']);
+
+function normalizeResetLanguage(value) {
+  if (typeof value !== 'string') return 'lt';
+  const normalized = value.trim().toLowerCase();
+  return SUPPORTED_RESET_LANGUAGES.has(normalized) ? normalized : 'lt';
+}
 
 function hashResetToken(token) {
   return crypto.createHash('sha256').update(token, 'utf8').digest('hex');
@@ -113,10 +120,11 @@ export async function logout(req, res, next) {
 
 export async function forgotPassword(req, res, next) {
   try {
-    const { email } = req.body || {};
+    const { email, language } = req.body || {};
     if (!email || !isValidEmail(String(email).trim())) {
       throw badRequest('Valid email is required');
     }
+    const preferredLanguage = normalizeResetLanguage(language);
 
     const normalized = String(email).toLowerCase().trim();
     const user = await prisma.user.findUnique({ where: { email: normalized } });
@@ -138,7 +146,11 @@ export async function forgotPassword(req, res, next) {
       const resetUrl = `${config.frontendUrl}/reset-password?token=${encodeURIComponent(plainToken)}`;
 
       try {
-        await sendPasswordResetEmail({ to: user.email, resetUrl });
+        await sendPasswordResetEmail({
+          to: user.email,
+          resetUrl,
+          language: preferredLanguage,
+        });
       } catch (e) {
         console.error('[auth] forgot-password email failed:', e);
       }

@@ -1,0 +1,11 @@
+{
+  "jest.jestCommandLine": "npm test --",
+  "jest.rootPath": ".",
+  "jest.runMode": "on-demand",
+  "jest.outputConfig": {
+    "revealOn": "run",
+    "revealWithFocus": "test-results",
+    "clearOnRun": "terminal"
+  },
+  "testing.automaticallyOpenTestResults": "neverOpen"
+}

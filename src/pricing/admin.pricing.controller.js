@@ -246,8 +246,10 @@ export async function getPricingAnalytics(req, res) {
         c.pricingSnapshot?.calculatedPrice ??
         null;
       if (basePerDay == null || finalPerDay == null) return;
-      totalBaseRevenue += basePerDay * days;
-      totalFinalRevenue += finalPerDay * days;
+      const baseTotal = basePerDay * days;
+      const finalTotal = c.totalPrice > 0 ? c.totalPrice : finalPerDay * days;
+      totalBaseRevenue += baseTotal;
+      totalFinalRevenue += finalTotal;
     });
 
     const pricingImpact =
