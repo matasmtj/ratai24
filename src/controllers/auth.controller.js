@@ -146,11 +146,8 @@ export async function forgotPassword(req, res, next) {
       const resetUrl = `${config.frontendUrl}/reset-password?token=${encodeURIComponent(plainToken)}`;
 
       try {
-        await sendPasswordResetEmail({
-          to: user.email,
-          resetUrl,
-          language: preferredLanguage,
-        });
+        await sendPasswordResetEmail({ to: user.email, resetUrl, language });
+
       } catch (e) {
         console.error('[auth] forgot-password email failed:', e);
       }

@@ -13,6 +13,40 @@ import {
   deleteSeasonalFactorRecord,
 } from './calculators/seasonal.calculator.js';
 import { runAllPricingJobs } from './pricing.jobs.js';
+import { DateTime } from 'luxon';
+
+const ANALYTICS_TZ = 'Europe/Vilnius';
+
+/**
+ * Convert optional YYYY-MM-DD query params to JS Date bounds inclusive of full calendar days in Europe/Vilnius.
+ * Fixes short-range analytics when contract endDate has a time component later than UTC midnight of the selected end day.
+ */
+function parseVilniusDayRange(startDate, endDate, { defaultDaysBack = 30 } = {}) {
+  const now = DateTime.now().setZone(ANALYTICS_TZ);
+  let start;
+  if (startDate === undefined || startDate === null || startDate === '') {
+    start = now.minus({ days: defaultDaysBack }).startOf('day');
+  } else {
+    const s = DateTime.fromISO(String(startDate).slice(0, 10), { zone: ANALYTICS_TZ });
+    if (!s.isValid) throw new Error('startDate must be a valid date');
+    start = s.startOf('day');
+  }
+
+  let end;
+  if (endDate === undefined || endDate === null || endDate === '') {
+    end = now.endOf('day');
+  } else {
+    const e = DateTime.fromISO(String(endDate).slice(0, 10), { zone: ANALYTICS_TZ });
+    if (!e.isValid) throw new Error('endDate must be a valid date');
+    end = e.endOf('day');
+  }
+
+  if (end < start) {
+    throw new Error('endDate must be on or after startDate');
+  }
+
+  return { start: start.toJSDate(), end: end.toJSDate() };
+}
 
 function parseOptionalNumber(value, fieldName) {
   if (value === undefined || value === null || value === '') return undefined;
@@ -150,10 +184,13 @@ export async function getPricingAnalytics(req, res) {
   try {
     const { startDate, endDate, cityId } = req.query;
     const parsedCityId = parseOptionalCityId(cityId);
-    const start = parseQueryDateOrDefault(startDate, new Date(Date.now() - 30 * 24 * 60 * 60 * 1000), 'startDate');
-    const end = parseQueryDateOrDefault(endDate, new Date(), 'endDate');
-    if (end < start) {
-      return res.status(400).json({ error: 'endDate must be on or after startDate' });
+    let start;
+    let end;
+    try {
+      ({ start, end } = parseVilniusDayRange(startDate, endDate, { defaultDaysBack: 30 }));
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      return res.status(400).json({ error: msg });
     }
 
     // ========== ACTUAL REVENUE from completed contracts ==========
@@ -174,6 +211,7 @@ export async function getPricingAnalytics(req, res) {
             model: true,
             year: true,
             cityId: true,
+            pricePerDay: true,
             city: {
               select: {
                 name: true,
@@ -186,6 +224,8 @@ export async function getPricingAnalytics(req, res) {
             basePrice: true,
             calculatedPrice: true,
             finalPrice: true,
+            demandMultiplier: true,
+            seasonalMultiplier: true,
           },
         },
       },
@@ -238,13 +278,16 @@ export async function getPricingAnalytics(req, res) {
         1,
         Math.ceil((new Date(c.endDate) - new Date(c.startDate)) / (1000 * 60 * 60 * 24))
       );
-      const basePerDay = c.basePrice ?? c.pricingSnapshot?.basePrice ?? null;
+      let basePerDay = c.basePrice ?? c.pricingSnapshot?.basePrice ?? null;
       const finalPerDay =
         c.finalPrice ??
         c.dynamicPrice ??
         c.pricingSnapshot?.finalPrice ??
         c.pricingSnapshot?.calculatedPrice ??
         null;
+      if (basePerDay == null && c.car?.pricePerDay != null) {
+        basePerDay = c.car.pricePerDay;
+      }
       if (basePerDay == null || finalPerDay == null) return;
       const baseTotal = basePerDay * days;
       const finalTotal = c.totalPrice > 0 ? c.totalPrice : finalPerDay * days;
@@ -283,14 +326,26 @@ export async function getPricingAnalytics(req, res) {
       take: 100,
     });
 
-    // Snapshot statistics (algorithm performance)
-    const avgDemandMultiplier = snapshots.length > 0
-      ? snapshots.reduce((sum, s) => sum + s.demandMultiplier, 0) / snapshots.length
-      : 1.0;
+    // Avg multipliers: prefer values stored on completed contracts in this period (booking-time multipliers).
+    const withDemand = contracts.filter(
+      (c) => c.demandMultiplier != null && Number.isFinite(c.demandMultiplier)
+    );
+    const avgDemandMultiplier =
+      withDemand.length > 0
+        ? withDemand.reduce((sum, c) => sum + c.demandMultiplier, 0) / withDemand.length
+        : snapshots.length > 0
+          ? snapshots.reduce((sum, s) => sum + s.demandMultiplier, 0) / snapshots.length
+          : 1.0;
 
-    const avgSeasonalMultiplier = snapshots.length > 0
-      ? snapshots.reduce((sum, s) => sum + s.seasonalMultiplier, 0) / snapshots.length
-      : 1.0;
+    const withSeasonal = contracts.filter(
+      (c) => c.seasonalMultiplier != null && Number.isFinite(c.seasonalMultiplier)
+    );
+    const avgSeasonalMultiplier =
+      withSeasonal.length > 0
+        ? withSeasonal.reduce((sum, c) => sum + c.seasonalMultiplier, 0) / withSeasonal.length
+        : snapshots.length > 0
+          ? snapshots.reduce((sum, s) => sum + s.seasonalMultiplier, 0) / snapshots.length
+          : 1.0;
 
     res.json({
       period: { start, end },
@@ -352,10 +407,13 @@ export async function getRevenueAnalytics(req, res) {
   try {
     const { startDate, endDate, cityId, groupBy } = req.query;
     const parsedCityId = parseOptionalCityId(cityId);
-    const start = parseQueryDateOrDefault(startDate, new Date(Date.now() - 90 * 24 * 60 * 60 * 1000), 'startDate'); // 90 days default
-    const end = parseQueryDateOrDefault(endDate, new Date(), 'endDate');
-    if (end < start) {
-      return res.status(400).json({ error: 'endDate must be on or after startDate' });
+    let start;
+    let end;
+    try {
+      ({ start, end } = parseVilniusDayRange(startDate, endDate, { defaultDaysBack: 90 }));
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      return res.status(400).json({ error: msg });
     }
 
     // Get all contracts (not just completed, to show pipeline)

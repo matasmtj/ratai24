@@ -1,52 +1,61 @@
 import { config } from '../config.js';
 
+function resolveResetEmailLanguage(language) {
+  const code = typeof language === 'string' ? language.trim().toLowerCase().slice(0, 2) : '';
+  if (code === 'en') return 'en';
+  if (code === 'ru') return 'ru';
+  return 'lt';
+}
+
+function buildPasswordResetContent(resetUrl, lang) {
+  const hours = config.passwordResetExpiresHours;
+  if (lang === 'en') {
+    return {
+      subject: 'Reset your password',
+      text: `You requested a password reset. Open this link to choose a new password (valid ${hours} hour(s)):\n\n${resetUrl}\n\nIf you did not request this, you can ignore this email.`,
+      html: `
+    <p>You requested a password reset.</p>
+    <p><a href="${resetUrl}">Set a new password</a></p>
+    <p>This link expires in ${hours} hour(s).</p>
+    <p>If you did not request this, you can ignore this email.</p>
+  `.trim(),
+    };
+  }
+  if (lang === 'ru') {
+    return {
+      subject: 'Сброс пароля',
+      text: `Вы запросили сброс пароля. Перейдите по ссылке, чтобы задать новый пароль (действует ${hours} ч.):\n\n${resetUrl}\n\nЕсли вы не запрашивали сброс, проигнорируйте это письмо.`,
+      html: `
+    <p>Вы запросили сброс пароля.</p>
+    <p><a href="${resetUrl}">Задать новый пароль</a></p>
+    <p>Ссылка действительна ${hours} ч.</p>
+    <p>Если вы не запрашивали сброс, проигнорируйте это письмо.</p>
+  `.trim(),
+    };
+  }
+  return {
+    subject: 'Atstatykite savo slaptažodį',
+    text: `Prašėte atkurti slaptažodį. Atidarykite nuorodą ir nustatykite naują slaptažodį (galioja ${hours} val.):\n\n${resetUrl}\n\nJei neprašėte slaptažodžio keitimo, ignoruokite šį laišką.`,
+    html: `
+    <p>Prašėte atkurti slaptažodį.</p>
+    <p><a href="${resetUrl}">Nustatyti naują slaptažodį</a></p>
+    <p>Nuoroda galioja ${hours} val.</p>
+    <p>Jei neprašėte slaptažodžio keitimo, ignoruokite šį laišką.</p>
+  `.trim(),
+  };
+}
+
 /**
  * Sends password reset email via Resend (https://resend.com) when RESEND_API_KEY is set.
  * Otherwise logs the link (local development).
+ *
+ * @param {{ to: string, resetUrl: string, language?: string }} args
  */
-const RESET_EMAIL_COPY = {
-  lt: {
-    subject: 'Atstatykite savo slaptažodį',
-    cta: 'Nustatyti naują slaptažodį',
-    intro: 'Gavome prašymą atstatyti jūsų slaptažodį.',
-    expiry: 'Ši nuoroda galioja',
-    ignore: 'Jei šio prašymo neteikėte, galite ignoruoti šį laišką.',
-  },
-  en: {
-    subject: 'Reset your password',
-    cta: 'Set a new password',
-    intro: 'You requested a password reset.',
-    expiry: 'This link expires in',
-    ignore: 'If you did not request this, you can ignore this email.',
-  },
-  ru: {
-    subject: 'Сброс пароля',
-    cta: 'Установить новый пароль',
-    intro: 'Вы запросили сброс пароля.',
-    expiry: 'Ссылка действительна',
-    ignore: 'Если вы не запрашивали это, просто проигнорируйте письмо.',
-  },
-};
-
-function normalizeLanguage(value) {
-  if (typeof value !== 'string') return 'lt';
-  const normalized = value.trim().toLowerCase();
-  return normalized === 'en' || normalized === 'ru' ? normalized : 'lt';
-}
-
-export async function sendPasswordResetEmail({ to, resetUrl, language = 'lt' }) {
+export async function sendPasswordResetEmail({ to, resetUrl, language }) {
   const { resendApiKey, emailFrom } = config;
-  const lang = normalizeLanguage(language);
-  const copy = RESET_EMAIL_COPY[lang];
 
-  const subject = copy.subject;
-  const text = `${copy.intro} ${copy.expiry} ${config.passwordResetExpiresHours} h:\n\n${resetUrl}\n\n${copy.ignore}`;
-  const html = `
-    <p>${copy.intro}</p>
-    <p><a href="${resetUrl}">${copy.cta}</a></p>
-    <p>${copy.expiry} ${config.passwordResetExpiresHours} h.</p>
-    <p>${copy.ignore}</p>
-  `.trim();
+  const lang = resolveResetEmailLanguage(language);
+  const { subject, text, html } = buildPasswordResetContent(resetUrl, lang);
 
   if (!resendApiKey) {
     console.warn('[email] RESEND_API_KEY not set — password reset link (dev):', resetUrl);
