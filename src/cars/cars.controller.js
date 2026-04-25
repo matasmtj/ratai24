@@ -10,9 +10,12 @@ const isNonEmptyString = (v) => typeof v === 'string' && v.trim().length > 0;
 const isVIN = (v) => typeof v === 'string' && /^[A-HJ-NPR-Z0-9]{17}$/.test(v.trim().toUpperCase());
 const isPlate = (v) => typeof v === 'string' && /^[A-Z0-9\- ]{2,12}$/i.test(v.trim());
 
-const FuelType = ['PETROL', 'DIESEL', 'ELECTRIC', 'HYBRID_HEV', 'HYBRID_PHEV'];
+const FuelType = ['PETROL', 'PETROL_LPG', 'DIESEL', 'ELECTRIC', 'HYBRID_HEV', 'HYBRID_PHEV'];
 const Gearbox  = ['MANUAL', 'AUTOMATIC'];
-const BodyType = ['SEDAN', 'HATCHBACK', 'SUV', 'WAGON', 'COUPE', 'CONVERTIBLE', 'VAN', 'PICKUP'];
+const BodyType = [
+  'SEDAN', 'HATCHBACK', 'SUV', 'WAGON', 'COUPE', 'CONVERTIBLE', 'VAN', 'PICKUP',
+  'MINIBUS_PASSENGER', 'MINIBUS_CARGO',
+];
 const CarState = ['AVAILABLE', 'LEASED', 'MAINTENANCE'];
 
 const carPublic = {

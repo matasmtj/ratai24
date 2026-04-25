@@ -267,37 +267,32 @@ export async function getPricingAnalytics(req, res) {
       ? (dynamicPricingCars / totalCars) * 100
       : 0;
 
-    // Contracts with dynamic pricing breakdown
+    // Contracts that had a stored quote / snapshot (for counts only)
     const contractsWithPricing = contracts.filter((c) => c.dynamicPrice !== null || c.pricingSnapshot !== null);
 
-    // Calculate pricing impact (final paid price vs base price)
+    /**
+     * Revenue impact: for every completed contract in the period, compare actual revenue to a
+     * "baseline" revenue at list/base per day × rental days. Baseline per day = contract.basePrice
+     * (captured at booking) → else pricingSnapshot.basePrice → else car list price.
+     * Previously this only included rows with dynamicPrice/snapshot, so static leases showed 0% and
+     * multipliers often stayed at 1.0.
+     */
     let totalBaseRevenue = 0;
-    let totalFinalRevenue = 0;
-    contractsWithPricing.forEach((c) => {
+    let totalActualRevenue = 0;
+    contracts.forEach((c) => {
       const days = Math.max(
         1,
         Math.ceil((new Date(c.endDate) - new Date(c.startDate)) / (1000 * 60 * 60 * 24))
       );
-      let basePerDay = c.basePrice ?? c.pricingSnapshot?.basePrice ?? null;
-      const finalPerDay =
-        c.finalPrice ??
-        c.dynamicPrice ??
-        c.pricingSnapshot?.finalPrice ??
-        c.pricingSnapshot?.calculatedPrice ??
-        null;
-      if (basePerDay == null && c.car?.pricePerDay != null) {
-        basePerDay = c.car.pricePerDay;
-      }
-      if (basePerDay == null || finalPerDay == null) return;
-      const baseTotal = basePerDay * days;
-      const finalTotal = c.totalPrice > 0 ? c.totalPrice : finalPerDay * days;
-      totalBaseRevenue += baseTotal;
-      totalFinalRevenue += finalTotal;
+      const basePerDay = c.basePrice ?? c.pricingSnapshot?.basePrice ?? c.car?.pricePerDay ?? null;
+      if (basePerDay == null) return;
+      totalBaseRevenue += basePerDay * days;
+      totalActualRevenue += c.totalPrice;
     });
 
     const pricingImpact =
       totalBaseRevenue > 0
-        ? ((totalFinalRevenue - totalBaseRevenue) / totalBaseRevenue) * 100
+        ? ((totalActualRevenue - totalBaseRevenue) / totalBaseRevenue) * 100
         : 0;
 
     // ========== PRICING SNAPSHOTS (for pricing algorithm insights) ==========
@@ -326,23 +321,23 @@ export async function getPricingAnalytics(req, res) {
       take: 100,
     });
 
-    // Avg multipliers: prefer values stored on completed contracts in this period (booking-time multipliers).
-    const withDemand = contracts.filter(
-      (c) => c.demandMultiplier != null && Number.isFinite(c.demandMultiplier)
-    );
+    // Avg multipliers: use contract row if present, else linked pricing snapshot from booking
+    const demandValues = contracts
+      .map((c) => c.demandMultiplier ?? c.pricingSnapshot?.demandMultiplier)
+      .filter((v) => v != null && Number.isFinite(v));
     const avgDemandMultiplier =
-      withDemand.length > 0
-        ? withDemand.reduce((sum, c) => sum + c.demandMultiplier, 0) / withDemand.length
+      demandValues.length > 0
+        ? demandValues.reduce((sum, v) => sum + v, 0) / demandValues.length
         : snapshots.length > 0
           ? snapshots.reduce((sum, s) => sum + s.demandMultiplier, 0) / snapshots.length
           : 1.0;
 
-    const withSeasonal = contracts.filter(
-      (c) => c.seasonalMultiplier != null && Number.isFinite(c.seasonalMultiplier)
-    );
+    const seasonalValues = contracts
+      .map((c) => c.seasonalMultiplier ?? c.pricingSnapshot?.seasonalMultiplier)
+      .filter((v) => v != null && Number.isFinite(v));
     const avgSeasonalMultiplier =
-      withSeasonal.length > 0
-        ? withSeasonal.reduce((sum, c) => sum + c.seasonalMultiplier, 0) / withSeasonal.length
+      seasonalValues.length > 0
+        ? seasonalValues.reduce((sum, v) => sum + v, 0) / seasonalValues.length
         : snapshots.length > 0
           ? snapshots.reduce((sum, s) => sum + s.seasonalMultiplier, 0) / snapshots.length
           : 1.0;

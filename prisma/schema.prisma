@@ -182,6 +182,7 @@ enum Role {
 
 enum FuelType {
   PETROL
+  PETROL_LPG
   DIESEL
   ELECTRIC
   HYBRID_HEV
@@ -202,6 +203,8 @@ enum BodyType {
   CONVERTIBLE
   VAN
   PICKUP
+  MINIBUS_PASSENGER
+  MINIBUS_CARGO
 }
 
 enum CarState {

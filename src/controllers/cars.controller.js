@@ -9,9 +9,12 @@ const isVIN = (v) => typeof v === 'string' && v.trim().length === 17 && /^[A-HJ-
 const isPlate = (v) => typeof v === 'string' && /^[A-Z0-9\- ]{2,12}$/i.test(v.trim());
 const inRange = (n, min, max) => typeof n === 'number' && n >= min && n <= max;
 
-const FuelType = ['PETROL', 'DIESEL', 'ELECTRIC', 'HYBRID_HEV', 'HYBRID_PHEV'];
+const FuelType = ['PETROL', 'PETROL_LPG', 'DIESEL', 'ELECTRIC', 'HYBRID_HEV', 'HYBRID_PHEV'];
 const Gearbox  = ['MANUAL', 'AUTOMATIC'];
-const BodyType = ['SEDAN', 'HATCHBACK', 'SUV', 'WAGON', 'COUPE', 'CONVERTIBLE', 'VAN', 'PICKUP'];
+const BodyType = [
+  'SEDAN', 'HATCHBACK', 'SUV', 'WAGON', 'COUPE', 'CONVERTIBLE', 'VAN', 'PICKUP',
+  'MINIBUS_PASSENGER', 'MINIBUS_CARGO',
+];
 const CarState = ['AVAILABLE', 'LEASED', 'MAINTENANCE'];
 
 async function attachOccupiedToday(cars) {
@@ -50,6 +53,7 @@ const carPublic = {
   maxPricePerDay: true,
   applyUtilizationPricing: true,
   utilizationMultiplierOverride: true,
+  utilizationRate: true,
   seatCount: true, fuelType: true, powerKW: true, engineCapacityL: true,
   bodyType: true, gearbox: true, state: true, odometerKm: true,
   images: {
@@ -471,68 +475,5 @@ export const listContractsForCar = async (req, res, next) => {
       select: { id: true, carId: true, startDate: true, endDate: true, createdAt: true },
     });
     res.json({ contracts: car.contracts, prepBlocks });
-  } catch (e) { next(e); }
-};
-
-// PUT /cars/:id/images/reorder
-export const reorderCarImages = async (req, res, next) => {
-  try {
-    const carId = asInt(req.params.id);
-    if (carId === null) throw badRequest('carId must be an integer');
-
-    const { imageIds } = req.body;
-    
-    // Validation
-    if (!Array.isArray(imageIds)) {
-      throw badRequest('imageIds must be an array');
-    }
-    if (imageIds.length === 0) {
-      throw badRequest('imageIds array cannot be empty');
-    }
-    if (!imageIds.every(id => Number.isInteger(id))) {
-      throw badRequest('All imageIds must be integers');
-    }
-
-    // Check if car exists
-    const car = await prisma.car.findUnique({
-      where: { id: carId },
-      include: { images: true }
-    });
-    if (!car) throw notFound('Car not found');
-
-    // Verify all image IDs belong to this car
-    const carImageIds = car.images.map(img => img.id);
-    const invalidIds = imageIds.filter(id => !carImageIds.includes(id));
-    if (invalidIds.length > 0) {
-      throw badRequest(`Images with IDs ${invalidIds.join(', ')} do not belong to this car`);
-    }
-
-    // Update order for each image
-    const updatePromises = imageIds.map((imageId, index) =>
-      prisma.carImage.update({
-        where: { id: imageId },
-        data: { order: index }
-      })
-    );
-
-    await Promise.all(updatePromises);
-
-    // Fetch updated images
-    const updatedImages = await prisma.carImage.findMany({
-      where: { carId },
-      orderBy: { order: 'asc' },
-      select: {
-        id: true,
-        url: true,
-        isMain: true,
-        order: true,
-        createdAt: true
-      }
-    });
-
-    res.json({
-      message: 'Images reordered successfully',
-      images: updatedImages
-    });
   } catch (e) { next(e); }
 };

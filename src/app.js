@@ -30,6 +30,9 @@ export function createApp({ enableSwagger = true, enableMorgan = true } = {}) {
   const app = express();
   app.use(cors());
   if (enableMorgan) app.use(morgan('dev'));
+  // JSON for all routes. Multipart image uploads are Content-Type: multipart/form-data, so
+  // express.json() leaves the body for multer (do not use express.json for those requests).
+  app.use(express.json());
 
   // Ensure uploads directory exists (needed on Render).
   const uploadsDir = path.resolve('uploads');
@@ -42,10 +45,8 @@ export function createApp({ enableSwagger = true, enableMorgan = true } = {}) {
   }
   app.use('/uploads', express.static('uploads'));
 
-  // Image routes MUST come before JSON parsing — multer handles multipart.
+  // Car image routes: POST uses multer; PUT/GET/DELETE use JSON or no body.
   app.use(carImageRoutes);
-
-  app.use(express.json());
 
   app.use(authRoutes);
   app.use(cityRoutes);

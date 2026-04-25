@@ -41,13 +41,13 @@ components:
     # ---------- Enums ----------
     FuelType:
       type: string
-      enum: [PETROL, DIESEL, ELECTRIC, HYBRID_HEV, HYBRID_PHEV]
+      enum: [PETROL, PETROL_LPG, DIESEL, ELECTRIC, HYBRID_HEV, HYBRID_PHEV]
     Gearbox:
       type: string
       enum: [MANUAL, AUTOMATIC]
     BodyType:
       type: string
-      enum: [SEDAN, HATCHBACK, SUV, WAGON, COUPE, CONVERTIBLE, VAN, PICKUP]
+      enum: [SEDAN, HATCHBACK, SUV, WAGON, COUPE, CONVERTIBLE, VAN, PICKUP, MINIBUS_PASSENGER, MINIBUS_CARGO]
     CarState:
       type: string
       enum: [AVAILABLE, LEASED, MAINTENANCE]

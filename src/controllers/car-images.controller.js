@@ -118,16 +118,18 @@ export const reorderImages = async (req, res, next) => {
     const carId = asInt(req.params.carId);
     if (carId === null) throw badRequest('carId must be an integer');
 
-    const { imageIds } = req.body;
+    const imageIds = req.body?.imageIds;
 
     // Validate imageIds
     if (!Array.isArray(imageIds) || imageIds.length === 0) {
       throw badRequest('imageIds must be a non-empty array');
     }
 
-    // Validate all IDs are integers
-    const validIds = imageIds.every(id => Number.isInteger(id));
-    if (!validIds) {
+    const normalizedIds = imageIds.map((id) => {
+      const n = Number(id);
+      return Number.isInteger(n) ? n : NaN;
+    });
+    if (normalizedIds.some((id) => Number.isNaN(id))) {
       throw badRequest('All imageIds must be integers');
     }
 
@@ -142,7 +144,7 @@ export const reorderImages = async (req, res, next) => {
 
     // Verify all provided IDs belong to this car
     const existingIds = existingImages.map(img => img.id);
-    const invalidIds = imageIds.filter(id => !existingIds.includes(id));
+    const invalidIds = normalizedIds.filter(id => !existingIds.includes(id));
     
     if (invalidIds.length > 0) {
       throw badRequest(`Invalid image IDs: ${invalidIds.join(', ')}`);
@@ -150,7 +152,7 @@ export const reorderImages = async (req, res, next) => {
 
     // Update order for each image using transactions
     await prisma.$transaction(
-      imageIds.map((id, index) => 
+      normalizedIds.map((id, index) => 
         prisma.carImage.update({
           where: { id },
           data: { order: index }
