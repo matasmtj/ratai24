@@ -1633,7 +1633,9 @@ paths:
     post:
       tags: [Pricing]
       summary: Calculate dynamic price for a car rental
-      description: Returns the optimized price based on demand, seasonality, duration, and other factors
+      description: |-
+        Returns optimized price. For cars with dynamic pricing, uses demand, season, duration, rules and loyalty.
+        For fixed daily rate cars, loyalty discount still applies from your rental history (userId).
       requestBody:
         required: true
         content:

@@ -182,23 +182,23 @@ export const createContract = async (req, res, next) => {
 
     await assertNoCalendarConflict(car.id, sd, ed);
 
-    let totalPrice = days * car.pricePerDay;
+    const pricing = await calculateDynamicPrice({
+      carId: car.id,
+      startDate: sd,
+      endDate: ed,
+      userId,
+      saveSnapshot: car.useDynamicPricing,
+    });
+
+    const totalPrice = pricing.totalPrice;
+
     let pricingPayload = {};
 
+    const basePerDay = pricing.basePrice ?? car.pricePerDay;
+    const calculatedPerDay = pricing.breakdown?.dynamicPrice ?? pricing.pricePerDay;
+    const finalPerDay = pricing.pricePerDay;
+
     if (car.useDynamicPricing) {
-      const pricing = await calculateDynamicPrice({
-        carId: car.id,
-        startDate: sd,
-        endDate: ed,
-        userId,
-        saveSnapshot: true,
-      });
-
-      totalPrice = pricing.totalPrice;
-      const basePerDay = pricing.basePrice ?? car.pricePerDay;
-      const calculatedPerDay = pricing.breakdown?.dynamicPrice ?? pricing.pricePerDay;
-      const finalPerDay = pricing.pricePerDay;
-
       pricingPayload = {
         basePrice: basePerDay,
         dynamicPrice: calculatedPerDay,
@@ -207,6 +207,16 @@ export const createContract = async (req, res, next) => {
         demandMultiplier: pricing.breakdown?.multipliers?.demand ?? null,
         seasonalMultiplier: pricing.breakdown?.multipliers?.seasonal ?? null,
         durationDiscount: pricing.breakdown?.multipliers?.duration ?? null,
+      };
+    } else {
+      pricingPayload = {
+        basePrice: basePerDay,
+        dynamicPrice: calculatedPerDay,
+        finalPrice: finalPerDay,
+        appliedDiscount: basePerDay > 0 ? Math.round(((basePerDay - finalPerDay) / basePerDay) * 10000) / 100 : 0,
+        demandMultiplier: null,
+        seasonalMultiplier: null,
+        durationDiscount: null,
       };
     }
 
@@ -280,17 +290,44 @@ export const updateContract = async (req, res, next) => {
       throw badRequest(`state must be one of: ${ContractState.join(', ')}`);
     }
 
-    const MS_PER_DAY = 1000 * 60 * 60 * 24;
-    const days = Math.max(1, Math.ceil(( newEnd - newStart ) / MS_PER_DAY));
-    const totalPrice = days * car.pricePerDay;
-    
+    const pricing = await calculateDynamicPrice({
+      carId: newCarId,
+      startDate: newStart,
+      endDate: newEnd,
+      userId: current.userId,
+      saveSnapshot: car.useDynamicPricing,
+    });
+
+    const totalPrice = pricing.totalPrice;
     if (totalPrice < 0) throw badRequest('Calculated totalPrice is negative (invalid dates or pricePerDay)');
+
+    const basePerDay = pricing.basePrice ?? car.pricePerDay;
+    const calculatedPerDay = pricing.breakdown?.dynamicPrice ?? pricing.pricePerDay;
+    const finalPerDay = pricing.pricePerDay;
+
+    const appliedDiscount =
+      basePerDay > 0 ? Math.round(((basePerDay - finalPerDay) / basePerDay) * 10000) / 100 : 0;
 
     const upd = {
       carId: newCarId,
       startDate: newStart,
       endDate: newEnd,
-      totalPrice
+      totalPrice,
+      basePrice: basePerDay,
+      dynamicPrice: calculatedPerDay,
+      finalPrice: finalPerDay,
+      appliedDiscount,
+      ...(car.useDynamicPricing
+        ? {
+            demandMultiplier: pricing.breakdown?.multipliers?.demand ?? null,
+            seasonalMultiplier: pricing.breakdown?.multipliers?.seasonal ?? null,
+            durationDiscount: pricing.breakdown?.multipliers?.duration ?? null,
+          }
+        : {
+            demandMultiplier: null,
+            seasonalMultiplier: null,
+            durationDiscount: null,
+          }),
     };
 
     if (mileageEndKm != null) {

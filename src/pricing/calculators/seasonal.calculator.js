@@ -224,3 +224,4 @@ export async function updateSeasonalFactorRecord(id, body) {
 export async function deleteSeasonalFactorRecord(id) {
   await prisma.seasonalFactor.delete({ where: { id } });
 }
+

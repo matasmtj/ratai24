@@ -46,28 +46,49 @@ export async function calculateDynamicPrice({ carId, startDate, endDate, userId 
       throw new Error('Car is not available for lease');
     }
 
-    // If dynamic pricing is disabled, return fixed price
+    // Fixed daily rate cars: loyalty still applies (same multiplier as dynamic pricing path).
+    // Seasonal factors and pricing-rule overrides remain dynamic-pricing-only by design.
     if (!car.useDynamicPricing) {
       const duration = Math.ceil((endDate - startDate) / (1000 * 60 * 60 * 24));
-      const totalPrice = car.pricePerDay * duration;
-      
+      if (duration < 1) {
+        throw new Error('Rental duration must be at least 1 day');
+      }
+
+      const baseListed = car.pricePerDay;
+      const customerMultiplier = await calculateCustomerMultiplier(userId);
+      const pricePerDay =
+        Math.round(baseListed * customerMultiplier * 100) / 100;
+      const totalPrice = Math.round(pricePerDay * duration * 100) / 100;
+
       return {
         carId,
-        basePrice: car.pricePerDay,
-        pricePerDay: car.pricePerDay,
+        cityId: car.cityId,
+        cityName: car.city?.name,
+        basePrice: baseListed,
+        pricePerDay,
         totalPrice,
         duration,
+        startDate,
+        endDate,
         breakdown: {
-          base: car.pricePerDay,
+          base: baseListed,
           multipliers: {
             demand: 1.0,
             seasonal: 1.0,
             utilization: 1.0,
             duration: 1.0,
-            customer: 1.0,
+            customer: customerMultiplier,
           },
+          dynamicPrice: pricePerDay,
+          constraints: {
+            min: baseListed,
+            max: baseListed,
+            applied: false,
+          },
+          rules: [],
         },
         isDynamic: false,
+        calculatedAt: new Date(),
       };
     }
 
@@ -180,23 +201,23 @@ async function applyPricingRules(car, startDate, endDate, currentPrice) {
     const rules = await prisma.pricingRule.findMany({
       where: {
         isActive: true,
-        OR: [
-          // Car-specific rules
-          { carId: car.id },
-          // City-specific rules
-          { carId: null, cityId: car.cityId },
-          // Global rules
-          { carId: null, cityId: null },
-        ],
-        // Date range check (if specified)
-        OR: [
-          // Rule with no date restrictions
-          { startDate: null, endDate: null },
-          // Rule that applies to this date range
+        AND: [
           {
-            AND: [
-              { startDate: { lte: endDate } },
-              { endDate: { gte: startDate } },
+            OR: [
+              { carId: car.id },
+              { carId: null, cityId: car.cityId },
+              { carId: null, cityId: null },
+            ],
+          },
+          {
+            OR: [
+              { startDate: null, endDate: null },
+              {
+                AND: [
+                  { startDate: { lte: endDate } },
+                  { endDate: { gte: startDate } },
+                ],
+              },
             ],
           },
         ],

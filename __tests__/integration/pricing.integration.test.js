@@ -140,3 +140,58 @@ describe('GET /api/pricing/loyalty', () => {
     expect(res.body).toHaveProperty('discount');
   });
 });
+
+describe('POST /api/pricing/calculate — static cars + loyalty', () => {
+  it('applies loyalty multiplier to fixed pricePerDay', async () => {
+    harness.prisma.car.findUnique.mockResolvedValue({
+      id: 9,
+      pricePerDay: 100,
+      useDynamicPricing: false,
+      availableForLease: true,
+      state: 'AVAILABLE',
+      cityId: 3,
+      city: { id: 3, name: 'Kaunas' },
+    });
+    harness.prisma.contract.findMany.mockResolvedValue(
+      Array.from({ length: 7 }, () => ({
+        totalPrice: 50,
+        state: 'COMPLETED',
+        endDate: new Date(2019, 5, 1),
+      }))
+    );
+    harness.prisma.pricingRule.findMany.mockResolvedValue([]);
+    const res = await request(harness.app)
+      .post('/api/pricing/calculate')
+      .send({
+        carId: 9,
+        userId: 5,
+        startDate: '2026-06-01',
+        endDate: '2026-06-05',
+      });
+    expect(res.status).toBe(200);
+    expect(res.body.isDynamic).toBe(false);
+    expect(res.body.breakdown.multipliers.customer).toBeCloseTo(0.92, 5);
+    expect(res.body.pricePerDay).toBeCloseTo(92, 5);
+    expect(res.body.totalPrice).toBeCloseTo(368, 5);
+  });
+});
+
+describe('POST /api/pricing/calculate — pricing rules query', () => {
+  it('scopes active rules by car/city/global AND rental date window', async () => {
+    stubPricingDependencies();
+    harness.prisma.pricingRule.findMany.mockImplementation((args) => {
+      expect(Array.isArray(args.where.AND)).toBe(true);
+      expect(args.where.AND).toHaveLength(2);
+      return Promise.resolve([]);
+    });
+    const res = await request(harness.app)
+      .post('/api/pricing/calculate')
+      .send({
+        carId: 1,
+        startDate: '2026-06-01',
+        endDate: '2026-06-08',
+      });
+    expect(res.status).toBe(200);
+    expect(harness.prisma.pricingRule.findMany).toHaveBeenCalled();
+  });
+});

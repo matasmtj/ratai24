@@ -40,6 +40,20 @@ function userToken(id = 2) {
   );
 }
 
+/** Car shape for lease + loyalty pricing (matches pricing.service car lookup). */
+function staticLeaseCar(overrides = {}) {
+  return {
+    id: 1,
+    cityId: 1,
+    pricePerDay: 40,
+    useDynamicPricing: false,
+    state: 'AVAILABLE',
+    availableForLease: true,
+    city: { id: 1, name: 'Vilnius' },
+    ...overrides,
+  };
+}
+
 function nextWeek(daysOffset = 7) {
   const d = new Date();
   d.setDate(d.getDate() + daysOffset);
@@ -136,13 +150,9 @@ describe('POST /contracts', () => {
   });
 
   it('rejects when the calendar slot overlaps an existing reservation (400)', async () => {
-    harness.prisma.car.findUnique.mockResolvedValue({
-      id: 1,
-      pricePerDay: 40,
-      useDynamicPricing: false,
-      state: 'AVAILABLE',
-    });
+    harness.prisma.car.findUnique.mockResolvedValue(staticLeaseCar());
     harness.prisma.contract.count.mockResolvedValue(0);
+    harness.prisma.contract.findMany.mockResolvedValue([]);
     harness.prisma.contract.findFirst.mockResolvedValueOnce({
       id: 99,
       carId: 1,
@@ -156,13 +166,9 @@ describe('POST /contracts', () => {
   });
 
   it('creates a DRAFT reservation with static pricing (201)', async () => {
-    harness.prisma.car.findUnique.mockResolvedValue({
-      id: 1,
-      pricePerDay: 40,
-      useDynamicPricing: false,
-      state: 'AVAILABLE',
-    });
+    harness.prisma.car.findUnique.mockResolvedValue(staticLeaseCar());
     harness.prisma.contract.count.mockResolvedValue(0);
+    harness.prisma.contract.findMany.mockResolvedValue([]);
     harness.prisma.contract.findFirst.mockResolvedValue(null);
     harness.prisma.carPrepBlock.findFirst.mockResolvedValue(null);
     harness.prisma.contract.create.mockResolvedValue({
