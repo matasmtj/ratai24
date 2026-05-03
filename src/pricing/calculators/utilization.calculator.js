@@ -6,8 +6,7 @@
  * Car.utilizationMultiplierOverride / Car.applyUtilizationPricing in the database.
  */
 
-import { PrismaClient } from '@prisma/client';
-const prisma = new PrismaClient();
+import prisma from '../../models/db.js';
 
 const TARGET_UTILIZATION = 0.75;
 

@@ -1,0 +1,130 @@
+@startuml ratai24-packages-backend
+title Ratai24 — Backend (WebApi, Controller, Application, Persistence, External)
+
+' Mažesnis OOM rizika: atskiras failas + mažiau enum mazgų (žr. Entities pastabą).
+
+skinparam packageStyle rectangle
+
+package "Ratai24.Backend" as BE {
+
+  package "WebApi.Host" as WHost {
+    class ExpressAppFactory <<Control>>
+    note bottom: createApp() — src/app.js
+  }
+
+  package "WebApi.Routes" as WR {
+    class AuthRoutes <<Control>>
+    class CityRoutes <<Control>>
+    class CarRoutes <<Control>>
+    class ContractRoutes <<Control>>
+    class UserRoutes <<Control>>
+    class ContactRoutes <<Control>>
+    class CarImageRoutes <<Control>>
+    class PricingRoutes <<Control>>
+    class AdminPricingRoutes <<Control>>
+  }
+
+  package "WebApi.Middleware" as WM {
+    class AuthMiddleware <<Control>>
+    class RolesMiddleware <<Control>>
+    class RecaptchaMiddleware <<Control>>
+    class UploadMiddleware <<Control>>
+    class CarFolderMiddleware <<Control>>
+  }
+
+  package "Controllers" as Ctr {
+    class AuthController <<Control>>
+    class CityController <<Control>>
+    class CarController <<Control>>
+    note right of CarController
+      Repo: gali būti keli failai (controllers/ ir cars/)
+      diagramoje vienas CarController.
+    end note
+    class ContractController <<Control>>
+    class UserController <<Control>>
+    class ContactController <<Control>>
+    class CarImageController <<Control>>
+    class PricingController <<Control>>
+    class AdminPricingController <<Control>>
+  }
+
+  package "Application.Pricing" as AP {
+    class PricingService <<Control>>
+    package "Application.Pricing.Calculators" as Calc {
+      class BasePriceCalculator <<Control>>
+      class DemandMultiplierCalculator <<Control>>
+      class SeasonalMultiplierCalculator <<Control>>
+      class UtilizationMultiplierCalculator <<Control>>
+      class DurationMultiplierCalculator <<Control>>
+      class CustomerLoyaltyCalculator <<Control>>
+    }
+  }
+
+  package "Application.Auth" as AA {
+    class TokenService <<Control>>
+  }
+
+  package "Application.Notifications" as AN {
+    class EmailService <<Control>>
+  }
+
+  package "Domain.Common" as DC {
+    class PasswordValidation <<Utility>>
+    class RentalPrepRules <<Utility>>
+  }
+
+  package "Infrastructure.Errors" as IE {
+    class HttpError <<Control>>
+    class ErrorHandler <<Control>>
+  }
+
+  package "Persistence" as Pers {
+    class PrismaClient <<ORM>>
+    package "Persistence.Entities" as Ent {
+      class City <<Entity>>
+      class Car <<Entity>>
+      class Contract <<Entity>>
+      class User <<Entity>>
+      class CarImage <<Entity>>
+      class CarPrepBlock <<Entity>>
+      class Contact <<Entity>>
+      class ContactOperationArea <<Entity>>
+      class PricingSnapshot <<Entity>>
+      class CityDemandMetrics <<Entity>>
+      class SeasonalFactor <<Entity>>
+      class PricingRule <<Entity>>
+      class RefreshToken <<Entity>>
+      class PasswordResetToken <<Entity>>
+      note bottom of Ent
+        Enums (prisma/schema): Role, CarState, ContractState,
+        FuelType, Gearbox, BodyType — braižyti MagicDraw kaip atskirą
+        paketą arba čia kaip «enumeration» be 6 atskirų PlantUML enum.
+      end note
+    }
+  }
+
+  package "External.Adapters" as EA {
+    class CloudinaryStorageAdapter <<external>>
+    class ResendEmailAdapter <<external>>
+    class RecaptchaVerifier <<external>>
+    class OpenApiSpec <<optional>>
+  }
+}
+
+WHost ..> WR
+WR ..> WM
+WR ..> Ctr
+WR ..> IE
+Ctr ..> AP
+Ctr ..> AA
+Ctr ..> AN
+Ctr ..> DC
+Ctr ..> Pers
+AP ..> Pers
+AA ..> Pers
+AN ..> EA
+Ctr ..> EA
+PricingService ..> Calc
+Calc ..> Pers
+
+@enduml

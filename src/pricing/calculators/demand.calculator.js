@@ -3,8 +3,7 @@
  * Calculates pricing multiplier based on supply and demand in a city
  */
 
-import { PrismaClient } from '@prisma/client';
-const prisma = new PrismaClient();
+import prisma from '../../models/db.js';
 
 /**
  * Calculate demand score based on available cars vs. rented cars

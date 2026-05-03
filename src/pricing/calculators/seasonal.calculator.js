@@ -3,8 +3,7 @@
  * Calculates pricing adjustments based on time of year, day of week, holidays, etc.
  */
 
-import { PrismaClient } from '@prisma/client';
-const prisma = new PrismaClient();
+import prisma from '../../models/db.js';
 
 /**
  * Calculate seasonal multiplier based on date and duration

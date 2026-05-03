@@ -3,8 +3,7 @@
  * Handles API requests for dynamic pricing
  */
 
-import { PrismaClient } from '@prisma/client';
-const prisma = new PrismaClient();
+import prisma from '../models/db.js';
 
 import * as pricingService from './pricing.service.js';
 import { getCityDemandMetrics } from './calculators/demand.calculator.js';

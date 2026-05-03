@@ -3,8 +3,7 @@
  * Orchestrates all pricing calculators to generate dynamic prices
  */
 
-import { PrismaClient } from '@prisma/client';
-const prisma = new PrismaClient();
+import prisma from '../models/db.js';
 
 import { calculateBasePrice } from './calculators/base-price.calculator.js';
 import { calculateDemandMultiplier } from './calculators/demand.calculator.js';

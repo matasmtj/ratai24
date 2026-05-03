@@ -1,9 +1,7 @@
-import { PrismaClient } from '@prisma/client';
+import prisma from '../models/db.js';
 import { badRequest, notFound } from '../errors.js';
 import bcrypt from 'bcryptjs';
 import { validatePasswordStrength } from '../lib/passwordValidation.js';
-
-const prisma = new PrismaClient();
 
 const isValidEmail = (email) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
 

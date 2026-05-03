@@ -1,7 +1,5 @@
-import { PrismaClient } from '@prisma/client';
+import prisma from '../models/db.js';
 import { badRequest, notFound } from '../errors.js';
-
-const prisma = new PrismaClient();
 
 // -------- helpers --------
 const asInt = (v) => { const n = Number(v); return Number.isInteger(n) ? n : null; };

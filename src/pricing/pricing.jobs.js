@@ -3,8 +3,7 @@
  * Scheduled tasks for maintaining pricing data
  */
 
-import { PrismaClient } from '@prisma/client';
-const prisma = new PrismaClient();
+import prisma from '../models/db.js';
 
 import { updateAllCarUtilizationRates } from './calculators/utilization.calculator.js';
 import { getCityDemandMetrics } from './calculators/demand.calculator.js';

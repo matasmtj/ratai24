@@ -1,8 +1,7 @@
 import jwt from 'jsonwebtoken';
 import crypto from 'crypto';
-import { PrismaClient } from '@prisma/client';
+import prisma from '../models/db.js';
 import { config } from '../config.js';
-const prisma = new PrismaClient();
 
 export function signAccessToken(user) {
   return jwt.sign({ sub: user.id, role: user.role, email: user.email }, config.jwtSecret, { expiresIn: config.jwtExpires });

@@ -1,9 +1,7 @@
 import bcrypt from 'bcryptjs';
-import { PrismaClient } from '@prisma/client';
+import prisma from '../models/db.js';
 import { signAccessToken, issueRefreshToken, rotateRefreshToken, revokeRefreshToken } from './token.service.js';
 import { badRequest } from '../errors.js';
-
-const prisma = new PrismaClient();
 
 export async function register(req, res, next) {
   try {

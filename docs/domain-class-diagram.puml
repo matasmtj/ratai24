@@ -1,0 +1,321 @@
+@startuml ratai24_domain_model
+
+title Ratai24 - domain / persistence class diagram (Prisma schema)\nPlantUML - import or recreate in MagicDraw / Cameo
+
+skinparam classAttributeIconSize 0
+skinparam ArrowColor #333333
+skinparam packageStyle rectangle
+hide circle
+
+legend right
+  Cardinality mirrors Prisma relations.
+  Contract.userId references User.id logically;
+  no Prisma relation attribute - dashed link below.
+endlegend
+
+
+package "Identity and auth" <<Rectangle>> #F5F5F5 {
+  class User {
+    .. identifiers ..
+    +id : int <<PK>>
+    +email : string <<unique>>
+    .. auth ..
+    +passwordHash : string
+    +firstName : string
+    +lastName : string
+    +phoneNumber : string
+    +role : Role
+    .. audit ..
+    +createdAt : DateTime
+    +updatedAt : DateTime
+  }
+
+  enum Role {
+    GUEST
+    USER
+    ADMIN
+  }
+
+  class RefreshToken {
+    +id : int <<PK>>
+    +token : string <<unique>>
+    +userId : int <<FK>>
+    +expiresAt : DateTime
+    +createdAt : DateTime
+  }
+
+  class PasswordResetToken {
+    +id : int <<PK>>
+    +tokenHash : string <<unique>>
+    +userId : int <<FK>>
+    +expiresAt : DateTime
+    +createdAt : DateTime
+  }
+
+  User "1" o-- "*" RefreshToken : has
+  User "1" o-- "*" PasswordResetToken : has
+  Role <.. User
+}
+
+
+package "Location and fleet" <<Rectangle>> #E8F4E8 {
+  class City {
+    +id : int <<PK>>
+    +name : string <<unique>>
+    +country : string
+    +createdAt : DateTime
+    +updatedAt : DateTime
+  }
+
+  enum CarState {
+    AVAILABLE
+    LEASED
+    MAINTENANCE
+  }
+
+  enum FuelType {
+    PETROL
+    PETROL_LPG
+    DIESEL
+    ELECTRIC
+    HYBRID_HEV
+    HYBRID_PHEV
+  }
+
+  enum Gearbox {
+    MANUAL
+    AUTOMATIC
+  }
+
+  enum BodyType {
+    SEDAN
+    HATCHBACK
+    SUV
+    WAGON
+    COUPE
+    CONVERTIBLE
+    VAN
+    PICKUP
+    MINIBUS_PASSENGER
+    MINIBUS_CARGO
+  }
+
+  class Car {
+    +id : int <<PK>>
+    +vin : string <<unique>>
+    +numberPlate : string <<unique>>
+    +make : string
+    +model : string
+    +year : int
+    +pricePerDay : float
+    +availableForLease : boolean
+    +availableForSale : boolean
+    +salePrice : Decimal
+    +saleDescription : string
+    __ dynamic pricing fields __
+    +useDynamicPricing : boolean
+    +basePricePerDay : float
+    +minPricePerDay : float
+    +maxPricePerDay : float
+    +dailyOperatingCost : float
+    +monthlyFinancingCost : float
+    +purchasePrice : float
+    +utilizationRate : float
+    +averageRevenuePerDay : float
+    +lastUtilizationUpdate : DateTime
+    +applyUtilizationPricing : boolean
+    +utilizationMultiplierOverride : float
+    __ maintenance __
+    +lastMaintenanceDate : DateTime
+    +nextMaintenanceKm : int
+    +maintenanceScore : float
+    __ location taxonomy __
+    +cityId : int <<FK>>
+    +seatCount : int
+    +fuelType : FuelType
+    +powerKW : int
+    +engineCapacityL : float
+    +bodyType : BodyType
+    +gearbox : Gearbox
+    +state : CarState
+    +odometerKm : int
+    +colour : string
+    +createdAt : DateTime
+    +updatedAt : DateTime
+  }
+
+  class CarImage {
+    +id : int <<PK>>
+    +carId : int <<FK>>
+    +filename : string
+    +url : string
+    +isMain : boolean
+    +order : int
+    +createdAt : DateTime
+  }
+
+  class CarPrepBlock {
+    +id : int <<PK>>
+    +carId : int <<FK>>
+    +startDate : DateTime
+    +endDate : DateTime
+    +createdAt : DateTime
+  }
+
+  City "1" o-- "*" Car : locatedIn
+  Car "1" o-- "*" CarImage : images
+  Car "1" o-- "*" CarPrepBlock : prepBlocks
+
+  CarState <.. Car
+  FuelType <.. Car
+  Gearbox <.. Car
+  BodyType <.. Car
+}
+
+
+package "Rental contracts" <<Rectangle>> #E8EEF8 {
+  enum ContractState {
+    DRAFT
+    ACTIVE
+    COMPLETED
+    CANCELLED
+  }
+
+  class Contract {
+    +id : int <<PK>>
+    +userId : int
+    +carId : int <<FK>>
+    +startDate : DateTime
+    +endDate : DateTime
+    +totalPrice : float
+    +state : ContractState
+    +mileageStartKm : int
+    +mileageEndKm : int
+    __ persisted pricing breakdown __
+    +basePrice : float
+    +dynamicPrice : float
+    +finalPrice : float
+    +appliedDiscount : float
+    +demandMultiplier : float
+    +seasonalMultiplier : float
+    +durationDiscount : float
+    +pricingSnapshotId : int <<FK>>
+    __ handover __
+    +fuelLevelStartPct : int
+    +fuelLevelEndPct : int
+    +extraFees : float
+    +notes : string
+  }
+
+  Car "1" o-- "*" Contract : rentals
+  ContractState <.. Contract
+}
+
+
+package "Pricing and demand" <<Rectangle>> #FFF4E8 {
+  class PricingSnapshot {
+    +id : int <<PK>>
+    +carId : int <<FK>>
+    +cityId : int <<FK>>
+    +calculatedPrice : float
+    +basePrice : float
+    +demandMultiplier : float
+    +seasonalMultiplier : float
+    +utilizationMultiplier : float
+    +durationMultiplier : float
+    +customerMultiplier : float
+    +finalPrice : float
+    +availableCars : int
+    +activeContracts : int
+    +requestDate : DateTime
+    +startDate : DateTime
+    +duration : int
+    +createdAt : DateTime
+  }
+
+  class CityDemandMetrics {
+    +id : int <<PK>>
+    +cityId : int <<FK_UQ>>
+    +totalCars : int
+    +availableCars : int
+    +activeContracts : int
+    +utilizationRate : float
+    +demandScore : float
+    +avgUtilization30d : float
+    +avgUtilization90d : float
+    +avgPriceMultiplier : float
+    +lastCalculated : DateTime
+    +updatedAt : DateTime
+  }
+
+  class SeasonalFactor {
+    +id : int <<PK>>
+    +name : string
+    +startDate : DateTime
+    +endDate : DateTime
+    +multiplier : float
+    +cityId : int <<FK>>
+    +isActive : boolean
+    +createdAt : DateTime
+  }
+
+  class PricingRule {
+    +id : int <<PK>>
+    +name : string
+    +description : string
+    +carId : int <<FK>>
+    +cityId : int <<FK>>
+    +startDate : DateTime
+    +endDate : DateTime
+    +fixedPrice : float
+    +multiplier : float
+    +minPrice : float
+    +maxPrice : float
+    +priority : int
+    +isActive : boolean
+    +createdAt : DateTime
+  }
+
+  City "1" o-- "*" PricingSnapshot
+  City "1" o-- "0..1" CityDemandMetrics : metricsFor
+  Car "1" o-- "*" PricingSnapshot
+  Car "1" o-- "*" PricingRule : overrides
+  City "1" o-- "*" SeasonalFactor
+  City "1" o-- "*" PricingRule
+  PricingSnapshot "1" o-- "*" Contract : recordedBy
+
+  note right of PricingRule
+    carId cityId nullable in DB;
+    omit here for readability.
+  end note
+}
+
+
+package "Contact CMS" <<Rectangle>> #F8F0F8 {
+  class Contact {
+    +id : int <<PK>>
+    +email : string
+    +phone : string
+    +businessHoursWeekdays : string
+    +businessHoursWeekend : string
+    +createdAt : DateTime
+    +updatedAt : DateTime
+  }
+
+  class ContactOperationArea {
+    +id : int <<PK>>
+    +contactId : int <<FK>>
+    +cityId : int <<FK>>
+    +address : string
+    +createdAt : DateTime
+    +updatedAt : DateTime
+  }
+
+  Contact "1" o-- "*" ContactOperationArea
+  City "1" o-- "*" ContactOperationArea
+}
+
+
+User .. Contract : logical FK userId
+
+@enduml

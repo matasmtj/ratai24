@@ -3,8 +3,7 @@
  * Helper functions for testing and initializing the pricing system
  */
 
-import { PrismaClient } from '@prisma/client';
-const prisma = new PrismaClient();
+import prisma from '../models/db.js';
 
 import { calculatePriceConstraints } from './calculators/base-price.calculator.js';
 import { calculateDynamicPrice } from './pricing.service.js';

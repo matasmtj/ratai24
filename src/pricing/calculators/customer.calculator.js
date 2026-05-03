@@ -3,8 +3,7 @@
  * Calculates personalized pricing based on customer history and loyalty
  */
 
-import { PrismaClient } from '@prisma/client';
-const prisma = new PrismaClient();
+import prisma from '../../models/db.js';
 
 const RECENT_ACTIVITY_BONUS_PCT = 3;
 const MAX_TOTAL_LOYALTY_DISCOUNT_PCT = 15;

@@ -3,8 +3,7 @@
  * Admin-only endpoints for pricing management and analytics
  */
 
-import { PrismaClient } from '@prisma/client';
-const prisma = new PrismaClient();
+import prisma from '../models/db.js';
 
 import { calculatePriceConstraints } from './calculators/base-price.calculator.js';
 import {

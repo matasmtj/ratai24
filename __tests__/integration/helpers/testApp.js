@@ -3,9 +3,9 @@
  *
  * Builds the Express app via `src/app.js`'s `createApp` factory, while
  * replacing `@prisma/client` with a deep-mocked instance so no real
- * PostgreSQL connection is required. The mock is a singleton so every
- * `new PrismaClient()` call across the codebase shares the same mock
- * state, and tests can stub individual method returns.
+ * PostgreSQL connection is required. Production code should import
+ * `prisma` from `src/models/db.js` (one client); tests mock `PrismaClient`
+ * so `db.js` and any stray `new PrismaClient()` share the same mock state.
  *
  * Usage pattern inside a test file:
  *
