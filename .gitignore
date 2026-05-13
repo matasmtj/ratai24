@@ -10,6 +10,9 @@ node_modules
 prisma/*.db
 prisma/*.db-journal
 
+# Test output
+jest-summary.json
+
 # Backup folders
 backups/
 backup/
