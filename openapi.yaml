@@ -1979,7 +1979,12 @@ paths:
               required: [name, multiplier]
               properties:
                 name: { type: string, example: "Weekend Special" }
-                carId: { type: integer, description: "Optional - apply to specific car", example: 1 }
+                carId: { type: integer, description: "Optional - apply to a single car (legacy; mutually exclusive with carIds)", example: 1 }
+                carIds:
+                  type: array
+                  items: { type: integer }
+                  description: "Optional - apply to multiple cars in one rule (mutually exclusive with carId)"
+                  example: [1, 2, 3]
                 cityId: { type: integer, description: "Optional - apply to specific city", example: 1 }
                 multiplier: { type: number, example: 0.9 }
                 startDate: { type: string, format: date, example: "2026-03-01" }

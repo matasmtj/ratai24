@@ -182,6 +182,15 @@ describe('POST /api/pricing/calculate — pricing rules query', () => {
     harness.prisma.pricingRule.findMany.mockImplementation((args) => {
       expect(Array.isArray(args.where.AND)).toBe(true);
       expect(args.where.AND).toHaveLength(2);
+      const scopeOr = args.where.AND[0].OR;
+      expect(scopeOr).toEqual(
+        expect.arrayContaining([
+          { carId: 1 },
+          { cars: { some: { carId: 1 } } },
+          { carId: null, cityId: 1, cars: { none: {} } },
+          { carId: null, cityId: null, cars: { none: {} } },
+        ])
+      );
       return Promise.resolve([]);
     });
     const res = await request(harness.app)

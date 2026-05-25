@@ -98,6 +98,57 @@ describe('POST /api/admin/pricing/rules', () => {
     expect(res.status).toBe(400);
     expect(res.body.error).toMatch(/name/i);
   });
+
+  it('creates one rule with carIds and junction rows (201)', async () => {
+    harness.prisma.car.count.mockResolvedValue(2);
+    harness.prisma.pricingRule.create.mockResolvedValue({
+      id: 10,
+      name: 'Fleet promo',
+      multiplier: 0.9,
+      carId: null,
+      cars: [],
+      car: null,
+      city: null,
+    });
+    harness.prisma.pricingRuleCar.createMany.mockResolvedValue({ count: 2 });
+    harness.prisma.pricingRule.findUnique.mockResolvedValue({
+      id: 10,
+      name: 'Fleet promo',
+      multiplier: 0.9,
+      carId: null,
+      cars: [{ carId: 1, car: { id: 1, make: 'A', model: 'B', numberPlate: 'X' } }],
+      car: null,
+      city: null,
+    });
+
+    const res = await request(harness.app)
+      .post('/api/admin/pricing/rules')
+      .set('Authorization', `Bearer ${adminToken()}`)
+      .send({ name: 'Fleet promo', multiplier: 0.9, carIds: [1, 2] });
+
+    expect(res.status).toBe(201);
+    expect(res.body.carIds).toEqual([1]);
+    expect(harness.prisma.pricingRule.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ carId: null }),
+      })
+    );
+    expect(harness.prisma.pricingRuleCar.createMany).toHaveBeenCalledWith({
+      data: [
+        { pricingRuleId: 10, carId: 1 },
+        { pricingRuleId: 10, carId: 2 },
+      ],
+    });
+  });
+
+  it('rejects carId and carIds together (400)', async () => {
+    const res = await request(harness.app)
+      .post('/api/admin/pricing/rules')
+      .set('Authorization', `Bearer ${adminToken()}`)
+      .send({ name: 'Conflict', multiplier: 1.1, carId: 1, carIds: [2] });
+    expect(res.status).toBe(400);
+    expect(res.body.error).toMatch(/either carId or carIds/i);
+  });
 });
 
 describe('DELETE /api/admin/pricing/rules/:id', () => {

@@ -204,8 +204,17 @@ async function applyPricingRules(car, startDate, endDate, currentPrice) {
           {
             OR: [
               { carId: car.id },
-              { carId: null, cityId: car.cityId },
-              { carId: null, cityId: null },
+              { cars: { some: { carId: car.id } } },
+              {
+                carId: null,
+                cityId: car.cityId,
+                cars: { none: {} },
+              },
+              {
+                carId: null,
+                cityId: null,
+                cars: { none: {} },
+              },
             ],
           },
           {

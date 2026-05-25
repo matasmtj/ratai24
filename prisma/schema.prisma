@@ -67,6 +67,7 @@ model Car {
   images            CarImage[]
   pricingSnapshots  PricingSnapshot[]
   pricingRules      PricingRule[]
+  pricingRuleCars   PricingRuleCar[]
   seatCount         Int        @default(5)
   fuelType          FuelType
   powerKW           Int
@@ -338,7 +339,19 @@ model PricingRule {
   priority    Int      @default(0)                          // Higher priority = applied first
   isActive    Boolean  @default(true)
   createdAt   DateTime @default(now())
+
+  cars        PricingRuleCar[]
   
   @@index([startDate, endDate, isActive])
   @@index([priority])
+}
+
+model PricingRuleCar {
+  pricingRuleId Int
+  carId         Int
+  pricingRule   PricingRule @relation(fields: [pricingRuleId], references: [id], onDelete: Cascade)
+  car           Car         @relation(fields: [carId], references: [id], onDelete: Cascade)
+
+  @@id([pricingRuleId, carId])
+  @@index([carId])
 }

@@ -175,6 +175,76 @@ function buildPricingRulePayload(body, { partial = false } = {}) {
   return payload;
 }
 
+const PRICING_RULE_INCLUDE = {
+  car: {
+    select: {
+      make: true,
+      model: true,
+      year: true,
+    },
+  },
+  city: {
+    select: {
+      name: true,
+    },
+  },
+  cars: {
+    include: {
+      car: {
+        select: {
+          id: true,
+          make: true,
+          model: true,
+          numberPlate: true,
+        },
+      },
+    },
+  },
+};
+
+function parseCarIdsFromBody(body) {
+  if (body.carIds === undefined) return undefined;
+  if (body.carIds === null) return [];
+  if (!Array.isArray(body.carIds)) {
+    throw new Error('carIds must be an array');
+  }
+  const ids = [];
+  for (const raw of body.carIds) {
+    const n = Number(raw);
+    if (!Number.isInteger(n) || n <= 0) {
+      throw new Error('Each carIds entry must be a positive integer');
+    }
+    if (!ids.includes(n)) ids.push(n);
+  }
+  return ids;
+}
+
+function assertCarScopeExclusive(body) {
+  const hasCarId =
+    body.carId !== undefined && body.carId !== null && body.carId !== '';
+  const carIds = parseCarIdsFromBody(body);
+  if (hasCarId && carIds !== undefined && carIds.length > 0) {
+    throw new Error('Provide either carId or carIds, not both');
+  }
+  return carIds;
+}
+
+async function assertCarsExist(carIds) {
+  if (!carIds.length) return;
+  const count = await prisma.car.count({
+    where: { id: { in: carIds } },
+  });
+  if (count !== carIds.length) {
+    throw new Error('One or more carIds are invalid');
+  }
+}
+
+function formatPricingRule(rule) {
+  const carIds = rule.cars?.map((link) => link.carId) ?? [];
+  const { cars, ...rest } = rule;
+  return { ...rest, carIds };
+}
+
 /**
  * Get pricing analytics dashboard data
  * GET /api/admin/pricing/analytics
@@ -695,12 +765,36 @@ export async function updateCarPricingConfig(req, res) {
  */
 export async function createPricingRule(req, res) {
   try {
-    const data = buildPricingRulePayload(req.body ?? {});
-    const rule = await prisma.pricingRule.create({
-      data,
+    const body = req.body ?? {};
+    const carIds = assertCarScopeExclusive(body);
+    const data = buildPricingRulePayload(body);
+
+    if (carIds !== undefined && carIds.length > 0) {
+      data.carId = null;
+      await assertCarsExist(carIds);
+    }
+
+    const rule = await prisma.$transaction(async (tx) => {
+      const created = await tx.pricingRule.create({
+        data,
+        include: PRICING_RULE_INCLUDE,
+      });
+      if (carIds?.length) {
+        await tx.pricingRuleCar.createMany({
+          data: carIds.map((carId) => ({
+            pricingRuleId: created.id,
+            carId,
+          })),
+        });
+        return tx.pricingRule.findUnique({
+          where: { id: created.id },
+          include: PRICING_RULE_INCLUDE,
+        });
+      }
+      return created;
     });
 
-    res.status(201).json(rule);
+    res.status(201).json(formatPricingRule(rule));
   } catch (error) {
     console.error('Error in createPricingRule:', error);
     if (error instanceof Error) {
@@ -719,26 +813,13 @@ export async function createPricingRule(req, res) {
 export async function getPricingRules(req, res) {
   try {
     const rules = await prisma.pricingRule.findMany({
-      include: {
-        car: {
-          select: {
-            make: true,
-            model: true,
-            year: true,
-          },
-        },
-        city: {
-          select: {
-            name: true,
-          },
-        },
-      },
+      include: PRICING_RULE_INCLUDE,
       orderBy: {
         priority: 'desc',
       },
     });
 
-    res.json(rules);
+    res.json(rules.map(formatPricingRule));
   } catch (error) {
     console.error('Error in getPricingRules:', error);
     res.status(500).json({
@@ -754,13 +835,58 @@ export async function getPricingRules(req, res) {
 export async function updatePricingRule(req, res) {
   try {
     const { id } = req.params;
-    const data = buildPricingRulePayload(req.body ?? {}, { partial: true });
-    const rule = await prisma.pricingRule.update({
-      where: { id: parseInt(id) },
-      data,
+    const ruleId = parseInt(id, 10);
+    if (!Number.isInteger(ruleId) || ruleId <= 0) {
+      return res.status(400).json({ error: 'id must be a positive integer' });
+    }
+
+    const body = req.body ?? {};
+    const carIds = assertCarScopeExclusive(body);
+    const data = buildPricingRulePayload(body, { partial: true });
+
+    const hasCarIdInBody =
+      body.carId !== undefined && body.carId !== null && body.carId !== '';
+
+    if (carIds !== undefined) {
+      if (carIds.length > 0) {
+        data.carId = null;
+        await assertCarsExist(carIds);
+      } else if (!hasCarIdInBody) {
+        data.carId = null;
+      }
+    }
+
+    const rule = await prisma.$transaction(async (tx) => {
+      await tx.pricingRule.update({
+        where: { id: ruleId },
+        data,
+      });
+
+      if (carIds !== undefined) {
+        await tx.pricingRuleCar.deleteMany({ where: { pricingRuleId: ruleId } });
+        if (carIds.length > 0) {
+          await tx.pricingRuleCar.createMany({
+            data: carIds.map((carId) => ({
+              pricingRuleId: ruleId,
+              carId,
+            })),
+          });
+        }
+      } else if (hasCarIdInBody) {
+        await tx.pricingRuleCar.deleteMany({ where: { pricingRuleId: ruleId } });
+      }
+
+      return tx.pricingRule.findUnique({
+        where: { id: ruleId },
+        include: PRICING_RULE_INCLUDE,
+      });
     });
 
-    res.json(rule);
+    if (!rule) {
+      return res.status(404).json({ error: 'Pricing rule not found' });
+    }
+
+    res.json(formatPricingRule(rule));
   } catch (error) {
     console.error('Error in updatePricingRule:', error);
     if (error instanceof Error) {
