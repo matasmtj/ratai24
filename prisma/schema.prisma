@@ -227,9 +227,66 @@ model Contact {
   phone                  String
   businessHoursWeekdays  String                  @default("8:00 - 18:00")
   businessHoursWeekend   String                  @default("9:00 - 15:00")
+  companyName            String?
+  companyCode            String?
+  bankAccount            String?
+  companyEmail           String?
+  mainAddress            String?
   operationAreas         ContactOperationArea[]
   createdAt              DateTime                @default(now())
   updatedAt              DateTime                @updatedAt
+}
+
+enum PartCondition {
+  NEW
+  USED
+  DAMAGED
+}
+
+model Part {
+  id              Int           @id @default(autoincrement())
+  partName        String
+  oemNumber       String?
+  make            String
+  model           String
+  year            Int
+  colour          String?
+  engineCapacityL Float?
+  powerKW         Int?
+  fuelType        FuelType?
+  gearbox         Gearbox?
+  bodyType        BodyType?
+  description     String?       @db.Text
+  condition       PartCondition @default(USED)
+  price           Decimal       @db.Decimal(10, 2)
+  images          PartImage[]
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  @@index([make, model])
+}
+
+model PartImage {
+  id        Int      @id @default(autoincrement())
+  partId    Int
+  part      Part     @relation(fields: [partId], references: [id], onDelete: Cascade)
+  filename  String
+  url       String
+  isMain    Boolean  @default(false)
+  order     Int      @default(0)
+  createdAt DateTime @default(now())
+
+  @@index([partId])
+}
+
+model LegalPageContent {
+  id        Int      @id @default(autoincrement())
+  pageKey   String
+  language  String
+  content   Json
+  updatedAt DateTime @updatedAt
+
+  @@unique([pageKey, language])
 }
 
 model ContactOperationArea {

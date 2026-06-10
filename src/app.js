@@ -23,6 +23,9 @@ import debugRoutes from './routes/debug.routes.js';
 import carImageRoutes from './routes/car-images.routes.js';
 import userRoutes from './routes/users.routes.js';
 import contactRoutes from './routes/contacts.routes.js';
+import partRoutes from './routes/parts.routes.js';
+import partImageRoutes from './routes/part-images.routes.js';
+import legalPagesRoutes from './routes/legal-pages.routes.js';
 import pricingRoutes from './pricing/pricing.routes.js';
 import adminPricingRoutes from './pricing/admin.pricing.routes.js';
 
@@ -47,6 +50,7 @@ export function createApp({ enableSwagger = true, enableMorgan = true } = {}) {
 
   // Car image routes: POST uses multer; PUT/GET/DELETE use JSON or no body.
   app.use(carImageRoutes);
+  app.use(partImageRoutes);
 
   app.use(authRoutes);
   app.use(cityRoutes);
@@ -54,6 +58,8 @@ export function createApp({ enableSwagger = true, enableMorgan = true } = {}) {
   app.use(contractRoutes);
   app.use(userRoutes);
   app.use(contactRoutes);
+  app.use(partRoutes);
+  app.use(legalPagesRoutes);
   app.use(pricingRoutes);
   app.use(adminPricingRoutes);
   app.use('/debug', debugRoutes);

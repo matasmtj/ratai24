@@ -14,6 +14,36 @@ const isValidPhone = (phone) => {
   return typeof phone === 'string' && phoneRegex.test(phone.trim());
 };
 const isValidBusinessHours = (hours) => typeof hours === 'string' && hours.trim().length > 0;
+const isOptionalString = (v) => v === undefined || v === null || typeof v === 'string';
+
+function formatContactResponse(contact) {
+  const operationAreasString = contact.operationAreas
+    .map(area => area.city.name)
+    .join(', ');
+
+  return {
+    id: contact.id,
+    email: contact.email,
+    phone: contact.phone,
+    businessHoursWeekdays: contact.businessHoursWeekdays,
+    businessHoursWeekend: contact.businessHoursWeekend,
+    companyName: contact.companyName || '',
+    companyCode: contact.companyCode || '',
+    bankAccount: contact.bankAccount || '',
+    companyEmail: contact.companyEmail || '',
+    mainAddress: contact.mainAddress || '',
+    operationAreas: operationAreasString,
+    operationAreasDetails: contact.operationAreas.map(area => ({
+      id: area.id,
+      cityId: area.cityId,
+      cityName: area.city.name,
+      country: area.city.country,
+      address: area.address || ''
+    })),
+    createdAt: contact.createdAt,
+    updatedAt: contact.updatedAt
+  };
+}
 
 // GET /contacts - Public endpoint
 // Returns the first (and should be only) contact with all operation areas
@@ -42,32 +72,7 @@ export const getContact = async (req, res, next) => {
       throw notFound('Contact not found');
     }
 
-    // Format response for frontend
-    // Frontend expects operationAreas as comma-separated string for backward compatibility
-    // But we also provide the structured data
-    const operationAreasString = contact.operationAreas
-      .map(area => area.city.name)
-      .join(', ');
-
-    const response = {
-      id: contact.id,
-      email: contact.email,
-      phone: contact.phone,
-      businessHoursWeekdays: contact.businessHoursWeekdays,
-      businessHoursWeekend: contact.businessHoursWeekend,
-      operationAreas: operationAreasString, // Comma-separated for frontend compatibility
-      operationAreasDetails: contact.operationAreas.map(area => ({
-        id: area.id,
-        cityId: area.cityId,
-        cityName: area.city.name,
-        country: area.city.country,
-        address: area.address || ''
-      })),
-      createdAt: contact.createdAt,
-      updatedAt: contact.updatedAt
-    };
-
-    res.json(response);
+    res.json(formatContactResponse(contact));
   } catch (e) { 
     next(e); 
   }
@@ -82,7 +87,12 @@ export const createContact = async (req, res, next) => {
       phone,
       operationAreas,
       businessHoursWeekdays = '8:00 - 18:00',
-      businessHoursWeekend = '9:00 - 15:00'
+      businessHoursWeekend = '9:00 - 15:00',
+      companyName,
+      companyCode,
+      bankAccount,
+      companyEmail,
+      mainAddress,
     } = req.body;
 
     // Validation
@@ -100,6 +110,14 @@ export const createContact = async (req, res, next) => {
     }
     if (!Array.isArray(operationAreas) || operationAreas.length === 0) {
       throw badRequest('operationAreas must be a non-empty array');
+    }
+    if (!isOptionalString(companyName)) throw badRequest('companyName must be a string');
+    if (!isOptionalString(companyCode)) throw badRequest('companyCode must be a string');
+    if (!isOptionalString(bankAccount)) throw badRequest('bankAccount must be a string');
+    if (!isOptionalString(companyEmail)) throw badRequest('companyEmail must be a string');
+    if (!isOptionalString(mainAddress)) throw badRequest('mainAddress must be a string');
+    if (companyEmail && companyEmail.trim() && !isValidEmail(companyEmail)) {
+      throw badRequest('Invalid companyEmail format');
     }
 
     // Validate operation areas structure
@@ -134,6 +152,11 @@ export const createContact = async (req, res, next) => {
         phone: phone.trim(),
         businessHoursWeekdays: businessHoursWeekdays.trim(),
         businessHoursWeekend: businessHoursWeekend.trim(),
+        companyName: companyName?.trim() || null,
+        companyCode: companyCode?.trim() || null,
+        bankAccount: bankAccount?.trim() || null,
+        companyEmail: companyEmail?.trim() || null,
+        mainAddress: mainAddress?.trim() || null,
         operationAreas: {
           create: operationAreas.map(area => ({
             cityId: area.cityId,
@@ -156,30 +179,7 @@ export const createContact = async (req, res, next) => {
       }
     });
 
-    // Format response
-    const operationAreasString = contact.operationAreas
-      .map(area => area.city.name)
-      .join(', ');
-
-    const response = {
-      id: contact.id,
-      email: contact.email,
-      phone: contact.phone,
-      businessHoursWeekdays: contact.businessHoursWeekdays,
-      businessHoursWeekend: contact.businessHoursWeekend,
-      operationAreas: operationAreasString,
-      operationAreasDetails: contact.operationAreas.map(area => ({
-        id: area.id,
-        cityId: area.cityId,
-        cityName: area.city.name,
-        country: area.city.country,
-        address: area.address || ''
-      })),
-      createdAt: contact.createdAt,
-      updatedAt: contact.updatedAt
-    };
-
-    res.status(201).json(response);
+    res.status(201).json(formatContactResponse(contact));
   } catch (e) { 
     next(e); 
   }
@@ -189,7 +189,10 @@ export const createContact = async (req, res, next) => {
 // Updates the existing contact (assumes there's only one)
 export const updateContact = async (req, res, next) => {
   try {
-    const { email, phone, operationAreas, businessHoursWeekdays, businessHoursWeekend } = req.body;
+    const {
+      email, phone, operationAreas, businessHoursWeekdays, businessHoursWeekend,
+      companyName, companyCode, bankAccount, companyEmail, mainAddress,
+    } = req.body;
 
     // Validation
     if (email !== undefined && !isValidEmail(email)) {
@@ -203,6 +206,14 @@ export const updateContact = async (req, res, next) => {
     }
     if (businessHoursWeekend !== undefined && !isValidBusinessHours(businessHoursWeekend)) {
       throw badRequest('businessHoursWeekend must be a non-empty string');
+    }
+    if (!isOptionalString(companyName)) throw badRequest('companyName must be a string');
+    if (!isOptionalString(companyCode)) throw badRequest('companyCode must be a string');
+    if (!isOptionalString(bankAccount)) throw badRequest('bankAccount must be a string');
+    if (!isOptionalString(companyEmail)) throw badRequest('companyEmail must be a string');
+    if (!isOptionalString(mainAddress)) throw badRequest('mainAddress must be a string');
+    if (companyEmail !== undefined && companyEmail?.trim() && !isValidEmail(companyEmail)) {
+      throw badRequest('Invalid companyEmail format');
     }
     if (operationAreas !== undefined) {
       if (!Array.isArray(operationAreas)) {
@@ -243,6 +254,11 @@ export const updateContact = async (req, res, next) => {
     if (phone !== undefined) updateData.phone = phone.trim();
     if (businessHoursWeekdays !== undefined) updateData.businessHoursWeekdays = businessHoursWeekdays.trim();
     if (businessHoursWeekend !== undefined) updateData.businessHoursWeekend = businessHoursWeekend.trim();
+    if (companyName !== undefined) updateData.companyName = companyName?.trim() || null;
+    if (companyCode !== undefined) updateData.companyCode = companyCode?.trim() || null;
+    if (bankAccount !== undefined) updateData.bankAccount = bankAccount?.trim() || null;
+    if (companyEmail !== undefined) updateData.companyEmail = companyEmail?.trim() || null;
+    if (mainAddress !== undefined) updateData.mainAddress = mainAddress?.trim() || null;
 
     // If operationAreas is provided, delete old ones and create new ones
     if (operationAreas !== undefined) {
@@ -282,30 +298,7 @@ export const updateContact = async (req, res, next) => {
       }
     });
 
-    // Format response
-    const operationAreasString = contact.operationAreas
-      .map(area => area.city.name)
-      .join(', ');
-
-    const response = {
-      id: contact.id,
-      email: contact.email,
-      phone: contact.phone,
-      businessHoursWeekdays: contact.businessHoursWeekdays,
-      businessHoursWeekend: contact.businessHoursWeekend,
-      operationAreas: operationAreasString,
-      operationAreasDetails: contact.operationAreas.map(area => ({
-        id: area.id,
-        cityId: area.cityId,
-        cityName: area.city.name,
-        country: area.city.country,
-        address: area.address || ''
-      })),
-      createdAt: contact.createdAt,
-      updatedAt: contact.updatedAt
-    };
-
-    res.json(response);
+    res.json(formatContactResponse(contact));
   } catch (e) { 
     next(e); 
   }
