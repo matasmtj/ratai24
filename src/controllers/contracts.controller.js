@@ -1,7 +1,15 @@
 import prisma from '../models/db.js';
-import { badRequest, notFound } from '../errors.js';
+import { badRequest, notFound, conflict } from '../errors.js';
 import { rentalEndNeedsPrepDay, nextPrepDayRangeUtc } from '../lib/rentalPrep.js';
 import { calculateDynamicPrice } from '../pricing/pricing.service.js';
+import {
+  acquireContractEditLock,
+  releaseContractEditLock,
+  clearContractEditLock,
+  assertAdminContractEditLock,
+  attachLockMeta,
+  contractWithLockInclude,
+} from '../lib/contractEditLock.js';
 
 const asInt = (v) => { const n = Number(v); return Number.isInteger(n) ? n : null; };
 const asNum = (v) => { const n = Number(v); return Number.isFinite(n) ? n : null; };
@@ -64,11 +72,12 @@ export const listContracts = async (req, res, next) => {
       where.carId = cid;
     }
     
-    const items = await prisma.contract.findMany({ 
+    const items = await prisma.contract.findMany({
       where,
-      orderBy: { startDate: 'desc' }
+      orderBy: { startDate: 'desc' },
+      include: contractWithLockInclude,
     });
-    res.json(items);
+    res.json(items.map(attachLockMeta));
   } catch (e) { next(e); }
 };
 
@@ -118,13 +127,16 @@ export const getContract = async (req, res, next) => {
     const id = asInt(req.params.id);
     if (id === null) throw badRequest('id must be an integer');
 
-    const item = await prisma.contract.findUnique({ where: { id } });
+    const item = await prisma.contract.findUnique({
+      where: { id },
+      include: contractWithLockInclude,
+    });
     if (!item) throw notFound('Contract not found');
 
     if (!isOwnerOrAdmin(req, item.userId)) {
       return res.status(403).json({ error: 'Forbidden' });
     }
-    res.json(item);
+    res.json(attachLockMeta(item));
   } catch (e) { next(e); }
 };
 
@@ -252,11 +264,17 @@ export const updateContract = async (req, res, next) => {
     const id = asInt(req.params.id);
     if (id === null) throw badRequest('id must be an integer');
 
-    const current = await prisma.contract.findUnique({ where: { id } });
+    const current = await prisma.contract.findUnique({
+      where: { id },
+      include: contractWithLockInclude,
+    });
     if (!current) throw notFound('Contract not found');
 
     if (!isOwnerOrAdmin(req, current.userId)) {
       return res.status(403).json({ error: 'Forbidden' });
+    }
+    if (req.user?.role === 'ADMIN') {
+      assertAdminContractEditLock(req, current);
     }
 
     const data = { ...(req.body ?? {}) };
@@ -370,14 +388,23 @@ export const deleteContract = async (req, res, next) => {
     const id = asInt(req.params.id);
     if (id === null) throw badRequest('id must be an integer');
 
-    const item = await prisma.contract.findUnique({ where: { id } });
+    const item = await prisma.contract.findUnique({
+      where: { id },
+      include: contractWithLockInclude,
+    });
     if (!item) throw notFound('Contract not found');
 
     if (!isOwnerOrAdmin(req, item.userId)) {
       return res.status(403).json({ error: 'Forbidden' });
     }
+    if (req.user?.role === 'ADMIN') {
+      assertAdminContractEditLock(req, item);
+    }
 
     await prisma.contract.delete({ where: { id } });
+    if (req.user?.role === 'ADMIN') {
+      await clearContractEditLock(id);
+    }
     res.status(200).json(item);
   } catch (e) {
     if (e?.code === 'P2025') return res.status(404).json({ error: 'Contract not found' });
@@ -391,11 +418,17 @@ export const completeContract = async (req, res, next) => {
     const id = asInt(req.params.id);
     if (id === null) throw badRequest('id must be an integer');
 
-    const current = await prisma.contract.findUnique({ where: { id } });
+    const current = await prisma.contract.findUnique({
+      where: { id },
+      include: contractWithLockInclude,
+    });
     if (!current) throw notFound('Contract not found');
 
     if (!isOwnerOrAdmin(req, current.userId)) {
       return res.status(403).json({ error: 'Forbidden' });
+    }
+    if (req.user?.role === 'ADMIN') {
+      assertAdminContractEditLock(req, current);
     }
 
     if (current.state && current.state !== 'ACTIVE') {
@@ -466,8 +499,15 @@ export const completeContract = async (req, res, next) => {
       }
     });
 
-    const updated = await prisma.contract.findUnique({ where: { id } });
-    res.json(updated);
+    if (req.user?.role === 'ADMIN') {
+      await clearContractEditLock(id);
+    }
+
+    const updated = await prisma.contract.findUnique({
+      where: { id },
+      include: contractWithLockInclude,
+    });
+    res.json(attachLockMeta(updated));
   } catch (e) { next(e); }
 };
 
@@ -477,11 +517,20 @@ export const activateContract = async (req, res, next) => {
     const id = asInt(req.params.id);
     if (id === null) throw badRequest('id must be an integer');
 
-    const current = await prisma.contract.findUnique({ where: { id } });
+    const current = await prisma.contract.findUnique({
+      where: { id },
+      include: contractWithLockInclude,
+    });
     if (!current) throw notFound('Contract not found');
+
+    assertAdminContractEditLock(req, current);
 
     if (current.state !== 'DRAFT') {
       return res.status(409).json({ error: `Cannot activate contract in state ${current.state}. Only DRAFT contracts can be activated.` });
+    }
+
+    if (!current.depositConfirmed) {
+      throw conflict('Cannot activate reservation until the €50 deposit is confirmed');
     }
 
     const updated = await prisma.$transaction(async (tx) => {
@@ -496,7 +545,8 @@ export const activateContract = async (req, res, next) => {
       return c;
     });
 
-    res.json(updated);
+    await clearContractEditLock(id);
+    res.json(attachLockMeta(updated));
   } catch (e) {
     if (e?.code === 'P2025') return res.status(404).json({ error: 'Contract not found' });
     next(e);
@@ -509,12 +559,18 @@ export const cancelContract = async (req, res, next) => {
     const id = asInt(req.params.id);
     if (id === null) throw badRequest('id must be an integer');
 
-    const current = await prisma.contract.findUnique({ where: { id } });
+    const current = await prisma.contract.findUnique({
+      where: { id },
+      include: contractWithLockInclude,
+    });
     if (!current) throw notFound('Contract not found');
 
     // Check ownership for non-admin users
     if (!isOwnerOrAdmin(req, current.userId)) {
       return res.status(403).json({ error: 'Forbidden' });
+    }
+    if (req.user?.role === 'ADMIN') {
+      assertAdminContractEditLock(req, current);
     }
 
     // Can only cancel DRAFT or ACTIVE contracts
@@ -535,9 +591,70 @@ export const cancelContract = async (req, res, next) => {
       });
     }
 
+    if (req.user?.role === 'ADMIN') {
+      await clearContractEditLock(id);
+    }
+
     res.json(updated);
   } catch (e) {
     if (e?.code === 'P2025') return res.status(404).json({ error: 'Contract not found' });
     next(e);
   }
+};
+
+// POST /contracts/:id/confirm-deposit — admin marks €50 deposit as received
+export const confirmContractDeposit = async (req, res, next) => {
+  try {
+    const id = asInt(req.params.id);
+    if (id === null) throw badRequest('id must be an integer');
+
+    const current = await prisma.contract.findUnique({
+      where: { id },
+      include: contractWithLockInclude,
+    });
+    if (!current) throw notFound('Contract not found');
+
+    assertAdminContractEditLock(req, current);
+
+    if (current.state !== 'DRAFT') {
+      throw conflict('Deposit can only be confirmed for pending reservations');
+    }
+
+    if (current.depositConfirmed) {
+      return res.json(attachLockMeta(current));
+    }
+
+    const updated = await prisma.contract.update({
+      where: { id },
+      data: { depositConfirmed: true },
+      include: contractWithLockInclude,
+    });
+
+    res.json(attachLockMeta(updated));
+  } catch (e) {
+    if (e?.code === 'P2025') return res.status(404).json({ error: 'Contract not found' });
+    next(e);
+  }
+};
+
+// POST /contracts/:id/lock — admin acquires or refreshes an edit lock
+export const acquireContractLock = async (req, res, next) => {
+  try {
+    const id = asInt(req.params.id);
+    if (id === null) throw badRequest('id must be an integer');
+
+    const updated = await acquireContractEditLock(id, req.user.id);
+    res.json(updated);
+  } catch (e) { next(e); }
+};
+
+// DELETE /contracts/:id/lock — admin releases their edit lock
+export const releaseContractLock = async (req, res, next) => {
+  try {
+    const id = asInt(req.params.id);
+    if (id === null) throw badRequest('id must be an integer');
+
+    const updated = await releaseContractEditLock(id, req.user.id);
+    res.json(updated);
+  } catch (e) { next(e); }
 };

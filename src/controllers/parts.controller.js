@@ -1,5 +1,6 @@
 import prisma from '../models/db.js';
 import { badRequest, notFound } from '../errors.js';
+import { IMAGE_DISPLAY_ORDER } from '../utils/imageOrdering.js';
 
 const asInt = (v) => { const n = Number(v); return Number.isInteger(n) ? n : null; };
 const asNum = (v) => { const n = Number(v); return Number.isFinite(n) ? n : null; };
@@ -16,7 +17,7 @@ const BodyType = [
 
 const partInclude = {
   images: {
-    orderBy: [{ isMain: 'desc' }, { order: 'asc' }, { createdAt: 'asc' }],
+    orderBy: IMAGE_DISPLAY_ORDER,
   },
 };
 

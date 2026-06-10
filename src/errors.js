@@ -5,6 +5,7 @@ export class HttpError extends Error {
 export const notFound = (msg='Not Found') => new HttpError(404, msg);
 export const badRequest = (msg='Bad Request', details) => new HttpError(400, msg, details);
 export const unprocessable = (msg='Unprocessable Entity', details) => new HttpError(422, msg, details);
+export const conflict = (msg='Conflict', details) => new HttpError(409, msg, details);
 
 export function errorHandler(err, req, res, next) {
   // Handle custom HttpError

@@ -1,6 +1,7 @@
 import prisma from '../models/db.js';
 import { badRequest, notFound } from '../errors.js';
 import { cloudinary } from '../middlewares/upload.middleware.js';
+import { IMAGE_DISPLAY_ORDER, getNextImageOrder } from '../utils/imageOrdering.js';
 
 const asInt = (v) => { const n = Number(v); return Number.isInteger(n) ? n : null; };
 
@@ -17,6 +18,8 @@ export const uploadPartImages = async (req, res, next) => {
       where: { partId, isMain: true },
     });
 
+    const nextOrder = await getNextImageOrder(prisma, prisma.partImage, 'partId', partId);
+
     const images = await Promise.all(
       req.files.map(async (file, index) => {
         const isMain = !existingMain && index === 0;
@@ -26,6 +29,7 @@ export const uploadPartImages = async (req, res, next) => {
             filename: file.filename,
             url: file.path,
             isMain,
+            order: nextOrder + index,
           },
         });
       })
@@ -50,7 +54,7 @@ export const listPartImages = async (req, res, next) => {
 
     const images = await prisma.partImage.findMany({
       where: { partId },
-      orderBy: [{ isMain: 'desc' }, { order: 'asc' }, { createdAt: 'asc' }],
+      orderBy: IMAGE_DISPLAY_ORDER,
     });
 
     res.json({ images });
@@ -109,6 +113,9 @@ export const reorderPartImages = async (req, res, next) => {
     if (invalidIds.length > 0) {
       throw badRequest(`Invalid image IDs: ${invalidIds.join(', ')}`);
     }
+    if (normalizedIds.length !== existingImages.length) {
+      throw badRequest('imageIds must include every image for this part');
+    }
 
     await prisma.$transaction(
       normalizedIds.map((id, index) =>
@@ -118,7 +125,7 @@ export const reorderPartImages = async (req, res, next) => {
 
     const updatedImages = await prisma.partImage.findMany({
       where: { partId },
-      orderBy: [{ isMain: 'desc' }, { order: 'asc' }],
+      orderBy: IMAGE_DISPLAY_ORDER,
     });
 
     res.json({ message: 'Images reordered successfully', images: updatedImages });
@@ -141,7 +148,7 @@ export const deletePartImage = async (req, res, next) => {
     if (image.isMain) {
       const otherImage = await prisma.partImage.findFirst({
         where: { partId, id: { not: imageId } },
-        orderBy: { createdAt: 'asc' },
+        orderBy: IMAGE_DISPLAY_ORDER,
       });
       if (otherImage) {
         await prisma.partImage.update({ where: { id: otherImage.id }, data: { isMain: true } });
@@ -149,6 +156,18 @@ export const deletePartImage = async (req, res, next) => {
     }
 
     await prisma.partImage.delete({ where: { id: imageId } });
+
+    const remaining = await prisma.partImage.findMany({
+      where: { partId },
+      orderBy: IMAGE_DISPLAY_ORDER,
+    });
+    if (remaining.length > 0) {
+      await prisma.$transaction(
+        remaining.map((img, index) =>
+          prisma.partImage.update({ where: { id: img.id }, data: { order: index } })
+        )
+      );
+    }
 
     try {
       const urlParts = image.url.split('/');

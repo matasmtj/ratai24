@@ -1,5 +1,6 @@
 import prisma from '../models/db.js';
 import { badRequest, notFound } from '../errors.js';
+import { IMAGE_DISPLAY_ORDER } from '../utils/imageOrdering.js';
 
 // -------- helpers --------
 const asInt = (v) => { const n = Number(v); return Number.isInteger(n) ? n : null; };
@@ -64,9 +65,7 @@ const carPublic = {
       order: true,
       createdAt: true
     },
-    orderBy: {
-      order: 'asc'
-    }
+    orderBy: IMAGE_DISPLAY_ORDER,
   }
 };
 

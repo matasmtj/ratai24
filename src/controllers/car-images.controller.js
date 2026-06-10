@@ -1,6 +1,7 @@
 import prisma from '../models/db.js';
 import { badRequest, notFound } from '../errors.js';
 import { cloudinary } from '../middlewares/upload.middleware.js';
+import { IMAGE_DISPLAY_ORDER, getNextImageOrder } from '../utils/imageOrdering.js';
 
 const asInt = (v) => { const n = Number(v); return Number.isInteger(n) ? n : null; };
 
@@ -23,19 +24,20 @@ export const uploadCarImages = async (req, res, next) => {
       where: { carId, isMain: true }
     });
 
-    // Create database records for uploaded images
+    const nextOrder = await getNextImageOrder(prisma, prisma.carImage, 'carId', carId);
+
     const images = await Promise.all(
       req.files.map(async (file, index) => {
-        // First uploaded image becomes main if no main image exists
         const isMain = !existingMain && index === 0;
-        
+
         return prisma.carImage.create({
           data: {
             carId,
             filename: file.filename,
-            url: file.path, // Cloudinary URL
-            isMain
-          }
+            url: file.path,
+            isMain,
+            order: nextOrder + index,
+          },
         });
       })
     );
@@ -62,10 +64,7 @@ export const listCarImages = async (req, res, next) => {
 
     const images = await prisma.carImage.findMany({
       where: { carId },
-      orderBy: [
-        { isMain: 'desc' }, // Main image first
-        { createdAt: 'asc' }
-      ]
+      orderBy: IMAGE_DISPLAY_ORDER,
     });
 
     res.json({ images });
@@ -149,24 +148,22 @@ export const reorderImages = async (req, res, next) => {
     if (invalidIds.length > 0) {
       throw badRequest(`Invalid image IDs: ${invalidIds.join(', ')}`);
     }
+    if (normalizedIds.length !== existingImages.length) {
+      throw badRequest('imageIds must include every image for this car');
+    }
 
-    // Update order for each image using transactions
     await prisma.$transaction(
-      normalizedIds.map((id, index) => 
+      normalizedIds.map((id, index) =>
         prisma.carImage.update({
           where: { id },
-          data: { order: index }
+          data: { order: index },
         })
       )
     );
 
-    // Fetch updated images
     const updatedImages = await prisma.carImage.findMany({
       where: { carId },
-      orderBy: [
-        { isMain: 'desc' },
-        { order: 'asc' }
-      ]
+      orderBy: IMAGE_DISPLAY_ORDER,
     });
 
     res.json({
@@ -199,19 +196,33 @@ export const deleteCarImage = async (req, res, next) => {
           carId,
           id: { not: imageId }
         },
-        orderBy: { createdAt: 'asc' }
+        orderBy: IMAGE_DISPLAY_ORDER,
       });
 
       if (otherImage) {
         await prisma.carImage.update({
           where: { id: otherImage.id },
-          data: { isMain: true }
+          data: { isMain: true },
         });
       }
     }
 
-    // Delete from database
     await prisma.carImage.delete({ where: { id: imageId } });
+
+    const remaining = await prisma.carImage.findMany({
+      where: { carId },
+      orderBy: IMAGE_DISPLAY_ORDER,
+    });
+    if (remaining.length > 0) {
+      await prisma.$transaction(
+        remaining.map((img, index) =>
+          prisma.carImage.update({
+            where: { id: img.id },
+            data: { order: index },
+          })
+        )
+      );
+    }
 
     // Delete file from Cloudinary
     try {

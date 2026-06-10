@@ -10,7 +10,10 @@ import {
   deleteContract, 
   completeContract,
   activateContract,
-  cancelContract
+  cancelContract,
+  acquireContractLock,
+  releaseContractLock,
+  confirmContractDeposit,
 } from '../controllers/contracts.controller.js';
 
 const r = Router();
@@ -22,5 +25,8 @@ r.put('/contracts/:id', requireAuth, updateContract);                  // owner 
 r.delete('/contracts/:id', requireAuth, deleteContract);               // owner or admin deletes
 r.post('/contracts/:id/complete', requireAuth, completeContract);      // owner or admin completes
 r.post('/contracts/:id/activate', requireAuth, requireRole('ADMIN'), activateContract); // admin activates DRAFT
+r.post('/contracts/:id/confirm-deposit', requireAuth, requireRole('ADMIN'), confirmContractDeposit);
 r.post('/contracts/:id/cancel', requireAuth, cancelContract);          // owner or admin cancels
+r.post('/contracts/:id/lock', requireAuth, requireRole('ADMIN'), acquireContractLock);
+r.delete('/contracts/:id/lock', requireAuth, requireRole('ADMIN'), releaseContractLock);
 export default r;
