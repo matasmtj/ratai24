@@ -369,6 +369,9 @@ async function main() {
   console.log('  - Pricing rules: 1');
   console.log('  - City demand metrics: 2');
 
+  const { runBootstrap } = await import('../src/bootstrap.js');
+  await runBootstrap();
+
   console.log('\n📊 Seeded:', {
     admin: admin.email,
     user: user.email,

@@ -1,0 +1,555 @@
+{
+  "privacy-policy": {
+    "lt": {
+      "intro": "Ši privatumo politika paaiškina, kaip \"Ratai24\" renka, naudoja ir saugo jūsų asmens duomenis, kai naudojatės mūsų svetaine, paskyra ir paslaugomis.",
+      "sections": [
+        {
+          "title": "1. Duomenų valdytojas",
+          "paragraphs": [
+            "Duomenų valdytojas: Ratai24 (juridinio asmens rekvizitai gali būti pateikti sutartyje). Norėdami įgyvendinti savo teises, kreipkitės el. paštu {email}."
+          ]
+        },
+        {
+          "title": "2. Renkami duomenys",
+          "bullets": [
+            "Paskyros duomenys: el. paštas, slaptažodis (užšifruotas), vardas, pavardė, telefono numeris.",
+            "Rezervacijų ir sutarčių duomenys: pasirinktas automobilis, nuomos laikotarpis, kainos, mokėjimai, grąžinimo informacija.",
+            "Naršymo duomenys: IP adresas, naršyklės informacija, veiklos žurnalai, slapukai ar panašios technologijos, reikalingos funkcionalumui ir analitikai.",
+            "Komunikacijos duomenys: užklausos, susirašinėjimas el. paštu ar telefonu."
+          ]
+        },
+        {
+          "title": "3. Duomenų naudojimo tikslai",
+          "bullets": [
+            "Paskyros kūrimui ir autentifikavimui.",
+            "Rezervacijų administravimui, sutarčių vykdymui ir klientų aptarnavimui.",
+            "Mokėjimų administravimui, apskaitai ir teisinių įsipareigojimų vykdymui.",
+            "Saugumo užtikrinimui, sukčiavimo prevencijai ir paslaugų kokybei gerinti.",
+            "Su jūsų sutikimu - naujienlaiškiams ar pasiūlymams (galite bet kada atsisakyti)."
+          ]
+        },
+        {
+          "title": "4. Teisiniai pagrindai",
+          "paragraphs": [
+            "Duomenis tvarkome pagal BDAR 6 str.: sutarties vykdymas (nuoma, rezervacijos), teisinė prievolė (apskaita), teisėtas interesas (svetainės saugumas, paslaugų tobulinimas), sutikimas (rinkodara, neprivalomi slapukai)."
+          ]
+        },
+        {
+          "title": "5. Duomenų saugojimas",
+          "paragraphs": [
+            "Duomenis saugome tik tiek, kiek reikia tikslams pasiekti: sutartiniai ir apskaitos duomenys - pagal teisės aktų reikalavimus; paskyros duomenys - kol naudojatės paslauga; slapukų duomenys - pagal jų galiojimo laiką."
+          ]
+        },
+        {
+          "title": "6. Duomenų gavėjai",
+          "paragraphs": [
+            "Duomenys gali būti perduodami paslaugų teikėjams (IT infrastruktūra, el. pašto paslaugos, mokėjimų paslaugos), laikantis duomenų apsaugos reikalavimų ir tik tiek, kiek būtina funkcionalumui užtikrinti. Duomenų neperduodame už ES/EEE ribų, išskyrus atvejus, kai taikomos BDAR numatytos apsaugos priemonės."
+          ]
+        },
+        {
+          "title": "7. Jūsų teisės",
+          "bullets": [
+            "Gauti informaciją apie duomenų tvarkymą.",
+            "Susipažinti su savo duomenimis ir gauti jų kopiją.",
+            "Reikalauti ištaisyti netikslius duomenis.",
+            "Reikalauti ištrinti duomenis, kai jie nebereikalingi ar tvarkomi neteisėtai.",
+            "Apriboti duomenų tvarkymą arba nesutikti su juo, kai tvarkoma teisėtu interesu.",
+            "Perkelti duomenis, kai tvarkoma automatizuotai pagal sutikimą ar sutartį.",
+            "Bet kada atšaukti sutikimą, kai duomenys tvarkomi sutikimo pagrindu."
+          ],
+          "paragraphs": [
+            "Teises galite įgyvendinti susisiekę el. paštu {email}. Jei manote, kad jūsų teisės pažeistos, turite teisę kreiptis į Valstybinę duomenų apsaugos inspekciją."
+          ]
+        },
+        {
+          "title": "8. Slapukai",
+          "paragraphs": [
+            "Naudojame būtinus slapukus svetainės veikimui ir analitinius slapukus paslaugų kokybei gerinti. Galite valdyti neprivalomus slapukus naršyklės nustatymuose. Būtinų slapukų išjungimas gali apriboti svetainės veikimą."
+          ]
+        },
+        {
+          "title": "9. Saugumas",
+          "paragraphs": [
+            "Taikome technines ir organizacines priemones (šifravimas, prieigos kontrolė, žurnalai), siekdami apsaugoti duomenis nuo neteisėtos prieigos, praradimo ar atskleidimo. Visada naudokite stiprų slaptažodį ir nesidalinkite prisijungimo duomenimis."
+          ]
+        },
+        {
+          "title": "10. Kontaktai ir atnaujinimai",
+          "paragraphs": [
+            "Kilus klausimų dėl privatumo politikos ar duomenų tvarkymo, rašykite el. paštu {email}. Ši politika gali būti atnaujinama; naujausia versija skelbiama šiame puslapyje."
+          ]
+        }
+      ]
+    },
+    "en": {
+      "intro": "This Privacy Policy explains how \"Ratai24\" collects, uses, and protects your personal data when you use our website, account, and services.",
+      "sections": [
+        {
+          "title": "1. Data controller",
+          "paragraphs": [
+            "Data controller: Ratai24 (legal entity details may be provided in the rental agreement). To exercise your rights, contact us at {email}."
+          ]
+        },
+        {
+          "title": "2. Data we collect",
+          "bullets": [
+            "Account data: email address, password (encrypted), first name, last name, phone number.",
+            "Reservation and contract data: selected vehicle, rental period, prices, payments, return information.",
+            "Browsing data: IP address, browser information, activity logs, cookies or similar technologies required for functionality and analytics.",
+            "Communication data: inquiries and correspondence by email or phone."
+          ]
+        },
+        {
+          "title": "3. Purposes of data use",
+          "bullets": [
+            "Account creation and authentication.",
+            "Reservation administration, contract performance, and customer support.",
+            "Payment administration, accounting, and compliance with legal obligations.",
+            "Security, fraud prevention, and service quality improvement.",
+            "With your consent - newsletters or offers (you may opt out at any time)."
+          ]
+        },
+        {
+          "title": "4. Legal basis",
+          "paragraphs": [
+            "We process data under GDPR Article 6: contract performance (rental, reservations), legal obligation (accounting), legitimate interest (website security, service improvement), consent (marketing, non-essential cookies)."
+          ]
+        },
+        {
+          "title": "5. Data retention",
+          "paragraphs": [
+            "We retain personal data only as long as needed to achieve the purposes: contractual and accounting data - in accordance with legal requirements; account data - while you use the service; cookie data - according to cookie retention periods."
+          ]
+        },
+        {
+          "title": "6. Data recipients",
+          "paragraphs": [
+            "Data may be shared with service providers (IT infrastructure, email services, payment services) in compliance with data protection requirements and only to the extent necessary to provide functionality. We do not transfer data outside the EU/EEA unless GDPR safeguards are applied."
+          ]
+        },
+        {
+          "title": "7. Your rights",
+          "bullets": [
+            "To receive information about data processing.",
+            "To access your personal data and obtain a copy.",
+            "To request correction of inaccurate data.",
+            "To request deletion where data is no longer needed or processed unlawfully.",
+            "To restrict processing or object when processing is based on legitimate interest.",
+            "To data portability where processing is automated based on consent or contract.",
+            "To withdraw consent at any time where processing is based on consent."
+          ],
+          "paragraphs": [
+            "You can exercise these rights by contacting us at {email}. If you believe your rights are violated, you have the right to lodge a complaint with the State Data Protection Inspectorate."
+          ]
+        },
+        {
+          "title": "8. Cookies",
+          "paragraphs": [
+            "We use essential cookies for website operation and analytical cookies to improve service quality. You can manage non-essential cookies in your browser settings. Disabling essential cookies may limit website functionality."
+          ]
+        },
+        {
+          "title": "9. Security",
+          "paragraphs": [
+            "We apply technical and organizational measures (encryption, access control, logging) to protect data from unauthorized access, loss, or disclosure. Always use a strong password and do not share your login credentials."
+          ]
+        },
+        {
+          "title": "10. Contacts and updates",
+          "paragraphs": [
+            "If you have questions about this Privacy Policy or data processing, contact us at {email}. This policy may be updated; the latest version is published on this page."
+          ]
+        }
+      ]
+    },
+    "ru": {
+      "intro": "Настоящая политика конфиденциальности объясняет, как \"Ratai24\" собирает, использует и защищает ваши персональные данные при использовании сайта, аккаунта и услуг.",
+      "sections": [
+        {
+          "title": "1. Оператор данных",
+          "paragraphs": [
+            "Оператор персональных данных: Ratai24 (реквизиты юридического лица могут быть указаны в договоре аренды). Для реализации ваших прав свяжитесь с нами по адресу {email}."
+          ]
+        },
+        {
+          "title": "2. Какие данные мы собираем",
+          "bullets": [
+            "Данные аккаунта: email, пароль (в зашифрованном виде), имя, фамилия, номер телефона.",
+            "Данные бронирования и договора: выбранный автомобиль, период аренды, стоимость, платежи, информация о возврате.",
+            "Данные использования сайта: IP-адрес, данные браузера, журналы активности, cookie и похожие технологии для работы и аналитики.",
+            "Коммуникационные данные: запросы и переписка по email или телефону."
+          ]
+        },
+        {
+          "title": "3. Цели обработки данных",
+          "bullets": [
+            "Создание аккаунта и аутентификация.",
+            "Администрирование бронирований, исполнение договора и поддержка клиентов.",
+            "Администрирование платежей, бухгалтерский учет и исполнение правовых обязательств.",
+            "Обеспечение безопасности, предотвращение мошенничества и улучшение качества услуг.",
+            "По вашему согласию - рассылки и предложения (отписаться можно в любое время)."
+          ]
+        },
+        {
+          "title": "4. Правовые основания",
+          "paragraphs": [
+            "Мы обрабатываем данные в соответствии со ст. 6 GDPR: исполнение договора (аренда, бронирования), правовая обязанность (бухгалтерия), законный интерес (безопасность сайта, улучшение сервиса), согласие (маркетинг, необязательные cookie)."
+          ]
+        },
+        {
+          "title": "5. Сроки хранения данных",
+          "paragraphs": [
+            "Мы храним данные только столько, сколько необходимо для достижения целей: данные по договорам и бухгалтерии - согласно требованиям законодательства; данные аккаунта - пока вы пользуетесь сервисом; данные cookie - в рамках срока их действия."
+          ]
+        },
+        {
+          "title": "6. Получатели данных",
+          "paragraphs": [
+            "Данные могут передаваться поставщикам услуг (IT-инфраструктура, email-сервисы, платежные сервисы) при соблюдении требований по защите данных и только в необходимом для функциональности объеме. Мы не передаем данные за пределы ЕС/ЕЭЗ, если не применяются предусмотренные GDPR меры защиты."
+          ]
+        },
+        {
+          "title": "7. Ваши права",
+          "bullets": [
+            "Получать информацию об обработке данных.",
+            "Получить доступ к своим данным и копию данных.",
+            "Требовать исправления неточных данных.",
+            "Требовать удаления данных, если они больше не нужны или обрабатываются незаконно.",
+            "Ограничить обработку или возразить против нее, когда обработка основана на законных интересах.",
+            "Получить данные для переноса, когда обработка ведется автоматизированно на основе согласия или договора.",
+            "Отозвать согласие в любое время, если обработка основана на согласии."
+          ],
+          "paragraphs": [
+            "Вы можете реализовать эти права, написав нам на {email}. Если вы считаете, что ваши права нарушены, вы вправе обратиться в Государственную инспекцию по защите данных."
+          ]
+        },
+        {
+          "title": "8. Cookie",
+          "paragraphs": [
+            "Мы используем обязательные cookie для работы сайта и аналитические cookie для улучшения качества сервиса. Необязательные cookie можно настроить в параметрах браузера. Отключение обязательных cookie может ограничить работу сайта."
+          ]
+        },
+        {
+          "title": "9. Безопасность",
+          "paragraphs": [
+            "Мы применяем технические и организационные меры (шифрование, контроль доступа, журналирование), чтобы защитить данные от несанкционированного доступа, утраты или разглашения. Используйте надежный пароль и не передавайте данные для входа третьим лицам."
+          ]
+        },
+        {
+          "title": "10. Контакты и обновления",
+          "paragraphs": [
+            "По вопросам политики конфиденциальности и обработки данных свяжитесь с нами: {email}. Политика может обновляться; актуальная версия публикуется на этой странице."
+          ]
+        }
+      ]
+    }
+  },
+  "rental-terms": {
+    "lt": {
+      "intro": "Šios sąlygos taikomos rezervuojant ir nuomojant automobilius per Ratai24.",
+      "sections": [
+        {
+          "title": "1. Rezervacija",
+          "bullets": [
+            "Automobilį galite rezervuoti internetu, telefonu ar el. paštu.",
+            "Rezervacijai patvirtinti gali būti imamas 50 Eur avansas; jis įskaičiuojamas į nuomos kainą ir negrąžinamas, jei neatvykstama ar atšaukiama po patvirtinimo.",
+            "Galutinis užsakymo patvirtinimas laikomas sudaryta nuomos sutartimi."
+          ]
+        },
+        {
+          "title": "2. Dokumentai",
+          "bullets": [
+            "Privalomi: galiojantis vairuotojo pažymėjimas ir asmens tapatybės dokumentas (pasas arba asmens tapatybės kortelė).",
+            "Minimalus vairavimo stažas – 2 metai. Jaunesni ar mažesnį stažą turintys vairuotojai gali būti nepriimami arba taikomas papildomas mokestis."
+          ]
+        },
+        {
+          "title": "3. Apmokėjimas ir užstatas",
+          "bullets": [
+            "Nuoma apmokama pavedimu iki automobilio pasiėmimo arba kortele atsiimant.",
+            "Užstatas: 800 Eur (standartinė atsakomybė), 400 Eur arba 0 Eur – priklausomai nuo pasirinkto draudimo paketo.",
+            "Pasirinkus 0 Eur franšizę, užstatas gali būti nerenkamas; paketo kaina apskaičiuojama rezervacijos metu."
+          ]
+        },
+        {
+          "title": "4. Papildomas vairuotojas",
+          "bullets": [
+            "Automobilį gali vairuoti tik sutartyje nurodyti vairuotojai.",
+            "Papildomas vairuotojas: 5 Eur/parai. Būtina iš anksto registruoti ir pateikti dokumentus."
+          ]
+        },
+        {
+          "title": "5. Draudimas",
+          "bullets": [
+            "Automobiliai apdrausti KASKO ir TPVCA. Standartinė franšizė – 800 Eur; galima rinktis 400 Eur arba 0 Eur atsakomybės paketą.",
+            "Apie bet kokį eismo įvykį, žalą ar incidentą praneškite per 1 kalendorinę dieną; nepranešus draudimas gali negalioti.",
+            "Praradus raktus ar dokumentus taikomas 200 Eur mokestis. Raktai ir dokumentai nedraudžiami.",
+            "Draudimas negalioja važiuojant bekelėje, sporto renginiuose, mokant vairuoti ar pažeidžiant sutartį."
+          ]
+        },
+        {
+          "title": "6. Atsakomybė vagystės ar avarijos atveju",
+          "bullets": [
+            "Nuomininko atsakomybė ribojama pasirinkto paketo franšize (800 / 400 / 0 Eur), jei laikomasi sutarties ir pranešimo tvarkos.",
+            "Vagystės atveju būtina grąžinti raktus ir dokumentus; jų negrąžinus atsakomybė gali būti neribojama."
+          ]
+        },
+        {
+          "title": "7. Rida ir kelionės",
+          "bullets": [
+            "Lietuvoje rida neribojama.",
+            "Kelionėms į užsienį: 300 km/parą (keleiviniams mikroautobusams – 500 km/parą), skaičiuojama per visą nuomos laikotarpį (pvz., 10 parų = 3000 km).",
+            "Viršijus limitą: 0,15 Eur/km naujiems automobiliams, 0,10 Eur/km kitiems.",
+            "Kelionės už LT ribų galimos tik su iš anksto suderintu automobiliu, kuriam galioja gamintojo garantija; senesniems automobiliams gali būti taikomos papildomos sąlygos."
+          ]
+        },
+        {
+          "title": "8. Techninė pagalba",
+          "paragraphs": [
+            "Teikiama 24/7 techninė pagalba kelyje visoje Europoje pagal draudimo sąlygas."
+          ]
+        },
+        {
+          "title": "9. Kuras",
+          "bullets": [
+            "Automobilis išduodamas su pilnu baku ir turi būti grąžintas su pilnu baku.",
+            "Už trūkstamą kurą taikomas sutartyje nurodytas tarifas, gali būti taikomas aptarnavimo mokestis."
+          ]
+        },
+        {
+          "title": "10. Neatvykimas ir atšaukimas",
+          "paragraphs": [
+            "Neatvykus ar atšaukus po patvirtinimo rezervacijos mokestis (50 Eur) negrąžinamas."
+          ]
+        },
+        {
+          "title": "11. Grąžinimas ir vėlavimas",
+          "bullets": [
+            "Vėluojant grąžinti ir nesuderinus iš anksto, taikomas 10 Eur/val. mokestis.",
+            "Vėluojant daugiau kaip 3 val., skaičiuojamas papildomos paros mokestis.",
+            "Automobilio paėmimas ar grąžinimas nedarbo valandomis galimas tik iš anksto suderinus; taikomas papildomas mokestis."
+          ]
+        },
+        {
+          "title": "12. Nenumatytos aplinkybės",
+          "paragraphs": [
+            "Esant force majeure (pvz., techninis gedimas, autoįvykis), pasiliekame teisę atšaukti ar pakeisti rezervaciją, apie tai iš anksto informavę klientą ir pasiūlę galimus sprendimus."
+          ]
+        },
+        {
+          "title": "13. Kiti įsipareigojimai",
+          "bullets": [
+            "Laikykitės kelių eismo taisyklių ir gamintojo rekomendacijų.",
+            "Nenaudokite automobilio bekelėje, varžybose, mokant vairuoti ar kitais neleistinais tikslais.",
+            "Apie gedimus ar įvykius informuokite nedelsdami – tai padeda išvengti papildomų nuostolių."
+          ]
+        }
+      ],
+      "note": "Pastaba: konkrečios kainos, nuolaidos ir papildomos paslaugos gali būti nustatomos individualioje sutartyje ar užsakyme."
+    },
+    "en": {
+      "intro": "These terms apply when reserving and renting vehicles through Ratai24.",
+      "sections": [
+        {
+          "title": "1. Reservation",
+          "bullets": [
+            "You may reserve a vehicle online, by phone, or by email.",
+            "A EUR 50 advance payment may be required to confirm a reservation; it is included in the rental price and is non-refundable in case of no-show or cancellation after confirmation.",
+            "Final reservation confirmation is treated as conclusion of the rental agreement."
+          ]
+        },
+        {
+          "title": "2. Documents",
+          "bullets": [
+            "Required: valid driving licence and valid identity document (passport or ID card).",
+            "Minimum driving experience is 2 years. Drivers who are younger or have less experience may be refused or subject to an additional fee."
+          ]
+        },
+        {
+          "title": "3. Payment and deposit",
+          "bullets": [
+            "Rental is paid by bank transfer before pickup or by card at pickup.",
+            "Deposit: EUR 800 (standard liability), EUR 400, or EUR 0 - depending on the selected insurance package.",
+            "If a EUR 0 excess package is selected, the deposit may be waived; package price is calculated during reservation."
+          ]
+        },
+        {
+          "title": "4. Additional driver",
+          "bullets": [
+            "Only drivers listed in the agreement may drive the vehicle.",
+            "Additional driver fee: EUR 5/day. Registration and document submission are required in advance."
+          ]
+        },
+        {
+          "title": "5. Insurance",
+          "bullets": [
+            "Vehicles are covered by CASCO and third-party liability insurance. Standard excess is EUR 800; EUR 400 or EUR 0 liability packages may be selected.",
+            "Any accident, damage, or incident must be reported within 1 calendar day; otherwise insurance coverage may be invalid.",
+            "Loss of keys or documents is subject to a EUR 200 fee. Keys and documents are not insured.",
+            "Insurance does not apply in off-road use, sports events, driving instruction, or other breach-of-contract situations."
+          ]
+        },
+        {
+          "title": "6. Liability in case of theft or accident",
+          "bullets": [
+            "Renter liability is limited to the selected package excess (EUR 800 / 400 / 0), provided contractual and reporting obligations are met.",
+            "In case of theft, keys and documents must be returned; failure to return them may remove liability limits."
+          ]
+        },
+        {
+          "title": "7. Mileage and cross-border travel",
+          "bullets": [
+            "Mileage is unlimited within Lithuania.",
+            "For travel abroad: 300 km/day (500 km/day for passenger vans), calculated over the entire rental period (e.g. 10 days = 3000 km).",
+            "Excess mileage fee: EUR 0.15/km for newer vehicles, EUR 0.10/km for others.",
+            "Trips outside Lithuania are allowed only with a vehicle approved in advance and covered by manufacturer warranty; additional conditions may apply to older vehicles."
+          ]
+        },
+        {
+          "title": "8. Roadside assistance",
+          "paragraphs": [
+            "24/7 roadside assistance is available across Europe under the insurance terms."
+          ]
+        },
+        {
+          "title": "9. Fuel",
+          "bullets": [
+            "The vehicle is handed over with a full tank and must be returned with a full tank.",
+            "Missing fuel is charged at the rate defined in the agreement; a service fee may apply."
+          ]
+        },
+        {
+          "title": "10. No-show and cancellation",
+          "paragraphs": [
+            "If you do not arrive or cancel after confirmation, the reservation fee (EUR 50) is not refunded."
+          ]
+        },
+        {
+          "title": "11. Return and delay",
+          "bullets": [
+            "For delayed return without prior agreement, a fee of EUR 10/hour applies.",
+            "If delay exceeds 3 hours, an additional full-day charge applies.",
+            "Pickup or return outside business hours is possible only by prior agreement and may incur an additional fee."
+          ]
+        },
+        {
+          "title": "12. Force majeure",
+          "paragraphs": [
+            "In case of force majeure (e.g. technical failure, traffic accident), we reserve the right to cancel or change a reservation after informing the client in advance and proposing available solutions."
+          ]
+        },
+        {
+          "title": "13. Other obligations",
+          "bullets": [
+            "Follow road traffic rules and manufacturer recommendations.",
+            "Do not use the vehicle off-road, in competitions, for driving instruction, or for other prohibited purposes.",
+            "Report malfunctions or incidents immediately to help prevent additional losses."
+          ]
+        }
+      ],
+      "note": "Note: specific prices, discounts, and additional services may be defined in an individual agreement or booking."
+    },
+    "ru": {
+      "intro": "Настоящие условия применяются при бронировании и аренде автомобилей через Ratai24.",
+      "sections": [
+        {
+          "title": "1. Бронирование",
+          "bullets": [
+            "Автомобиль можно забронировать онлайн, по телефону или по email.",
+            "Для подтверждения бронирования может взиматься аванс 50 EUR; он включается в стоимость аренды и не возвращается при неявке или отмене после подтверждения.",
+            "Окончательное подтверждение бронирования считается заключением договора аренды."
+          ]
+        },
+        {
+          "title": "2. Документы",
+          "bullets": [
+            "Обязательно: действующее водительское удостоверение и документ, удостоверяющий личность (паспорт или ID-карта).",
+            "Минимальный стаж вождения - 2 года. Более молодые водители или водители с меньшим стажем могут быть не приняты либо для них может применяться дополнительная плата."
+          ]
+        },
+        {
+          "title": "3. Оплата и депозит",
+          "bullets": [
+            "Оплата аренды производится банковским переводом до получения автомобиля либо картой при получении.",
+            "Депозит: 800 EUR (стандартная ответственность), 400 EUR или 0 EUR - в зависимости от выбранного страхового пакета.",
+            "При выборе пакета с франшизой 0 EUR депозит может не взиматься; стоимость пакета рассчитывается при бронировании."
+          ]
+        },
+        {
+          "title": "4. Дополнительный водитель",
+          "bullets": [
+            "Управлять автомобилем могут только водители, указанные в договоре.",
+            "Дополнительный водитель: 5 EUR/сутки. Требуется предварительная регистрация и предоставление документов."
+          ]
+        },
+        {
+          "title": "5. Страхование",
+          "bullets": [
+            "Автомобили застрахованы по КАСКО и ОСАГО. Стандартная франшиза - 800 EUR; можно выбрать пакеты ответственности 400 EUR или 0 EUR.",
+            "О любом ДТП, повреждении или инциденте необходимо сообщить в течение 1 календарного дня; при несообщении страхование может не действовать.",
+            "За утерю ключей или документов взимается плата 200 EUR. Ключи и документы не страхуются.",
+            "Страхование не действует при езде вне дорог, участии в спортивных мероприятиях, обучении вождению или нарушении условий договора."
+          ]
+        },
+        {
+          "title": "6. Ответственность при угоне или ДТП",
+          "bullets": [
+            "Ответственность арендатора ограничена франшизой выбранного пакета (800 / 400 / 0 EUR) при соблюдении условий договора и порядка уведомления.",
+            "При угоне необходимо вернуть ключи и документы; при их невозврате ответственность может стать неограниченной."
+          ]
+        },
+        {
+          "title": "7. Пробег и поездки",
+          "bullets": [
+            "По Литве пробег не ограничен.",
+            "Для поездок за границу: 300 км/сутки (500 км/сутки для пассажирских микроавтобусов), расчет по всему сроку аренды (например, 10 суток = 3000 км).",
+            "При превышении лимита: 0,15 EUR/км для новых автомобилей, 0,10 EUR/км для остальных.",
+            "Поездки за пределы Литвы возможны только на заранее согласованном автомобиле с действующей гарантией производителя; для более старых автомобилей могут применяться дополнительные условия."
+          ]
+        },
+        {
+          "title": "8. Техническая помощь",
+          "paragraphs": [
+            "Круглосуточная техническая помощь 24/7 предоставляется по всей Европе в соответствии с условиями страхования."
+          ]
+        },
+        {
+          "title": "9. Топливо",
+          "bullets": [
+            "Автомобиль выдается с полным баком и должен быть возвращен с полным баком.",
+            "Недостающее топливо оплачивается по тарифу, указанному в договоре; может взиматься сервисный сбор."
+          ]
+        },
+        {
+          "title": "10. Неявка и отмена",
+          "paragraphs": [
+            "При неявке или отмене после подтверждения сбор за бронирование (50 EUR) не возвращается."
+          ]
+        },
+        {
+          "title": "11. Возврат и опоздание",
+          "bullets": [
+            "При задержке возврата без предварительного согласования применяется плата 10 EUR/час.",
+            "При задержке более 3 часов начисляется стоимость дополнительных суток.",
+            "Получение или возврат автомобиля вне рабочего времени возможны только по предварительному согласованию; применяется дополнительная плата."
+          ]
+        },
+        {
+          "title": "12. Непредвиденные обстоятельства",
+          "paragraphs": [
+            "При форс-мажоре (например, техническая неисправность, ДТП) мы оставляем за собой право отменить или изменить бронирование, предварительно уведомив клиента и предложив возможные решения."
+          ]
+        },
+        {
+          "title": "13. Прочие обязательства",
+          "bullets": [
+            "Соблюдайте правила дорожного движения и рекомендации производителя.",
+            "Не используйте автомобиль вне дорог, в соревнованиях, для обучения вождению или в иных запрещенных целях.",
+            "Немедленно сообщайте о неисправностях или происшествиях - это помогает избежать дополнительных убытков."
+          ]
+        }
+      ],
+      "note": "Примечание: конкретные цены, скидки и дополнительные услуги могут определяться в индивидуальном договоре или заказе."
+    }
+  }
+}

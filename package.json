@@ -8,6 +8,7 @@
     "start": "npx prisma db push && node index.js",
     "db:push": "prisma db push",
     "db:seed": "node prisma/seed.js",
+    "generate:legal-defaults": "node scripts/extract-legal-defaults.mjs",
     "postinstall": "prisma generate",
     "postman:demo": "bash demo.sh",
     "test": "cross-env NODE_OPTIONS=--experimental-vm-modules jest",
