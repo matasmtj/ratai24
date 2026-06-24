@@ -1,5 +1,6 @@
 import prisma from '../models/db.js';
 import { badRequest, notFound } from '../errors.js';
+import { cloudinary } from '../middlewares/upload.middleware.js';
 
 // Helper functions
 const asInt = (v) => { const n = Number(v); return Number.isInteger(n) ? n : null; };
@@ -32,6 +33,7 @@ function formatContactResponse(contact) {
     bankAccount: contact.bankAccount || '',
     companyEmail: contact.companyEmail || '',
     mainAddress: contact.mainAddress || '',
+    heroImageUrl: contact.heroImageUrl || null,
     operationAreas: operationAreasString,
     operationAreasDetails: contact.operationAreas.map(area => ({
       id: area.id,
@@ -301,5 +303,103 @@ export const updateContact = async (req, res, next) => {
     res.json(formatContactResponse(contact));
   } catch (e) { 
     next(e); 
+  }
+};
+
+/**
+ * Extract a Cloudinary publicId (with folder) from an upload URL.
+ * Mirrors the logic used in car-images.controller.js when deleting assets.
+ */
+function publicIdFromCloudinaryUrl(url) {
+  if (!url || typeof url !== 'string') return null;
+  const parts = url.split('/');
+  const uploadIdx = parts.findIndex((p) => p === 'upload');
+  if (uploadIdx === -1) return null;
+  // Skip 'upload' and the version segment (e.g. v1234567890).
+  const pathParts = parts.slice(uploadIdx + 2);
+  const joined = pathParts.join('/');
+  const dot = joined.lastIndexOf('.');
+  return dot === -1 ? joined : joined.substring(0, dot);
+}
+
+// POST /contacts/hero-image - Admin uploads the landing hero background image.
+// Expects a single file in the `image` field (multipart/form-data).
+export const uploadHeroImage = async (req, res, next) => {
+  try {
+    if (!req.file) {
+      throw badRequest('No file uploaded. Send the image in the "image" field.');
+    }
+
+    const existing = await prisma.contact.findFirst();
+    if (!existing) {
+      throw notFound('Contact not found. Create contact details first.');
+    }
+
+    // If a previous hero image exists, remove it from Cloudinary first.
+    if (existing.heroImageUrl) {
+      const publicId = publicIdFromCloudinaryUrl(existing.heroImageUrl);
+      if (publicId) {
+        try {
+          await cloudinary.uploader.destroy(publicId);
+        } catch (err) {
+          console.error('Failed to delete previous hero image from Cloudinary:', err);
+        }
+      }
+    }
+
+    const updated = await prisma.contact.update({
+      where: { id: existing.id },
+      data: { heroImageUrl: req.file.path },
+      include: {
+        operationAreas: {
+          include: {
+            city: { select: { id: true, name: true, country: true } },
+          },
+          orderBy: { cityId: 'asc' },
+        },
+      },
+    });
+
+    res.status(201).json(formatContactResponse(updated));
+  } catch (e) {
+    next(e);
+  }
+};
+
+// DELETE /contacts/hero-image - Admin removes the hero image; falls back to gradient.
+export const deleteHeroImage = async (req, res, next) => {
+  try {
+    const existing = await prisma.contact.findFirst();
+    if (!existing) {
+      throw notFound('Contact not found.');
+    }
+
+    if (existing.heroImageUrl) {
+      const publicId = publicIdFromCloudinaryUrl(existing.heroImageUrl);
+      if (publicId) {
+        try {
+          await cloudinary.uploader.destroy(publicId);
+        } catch (err) {
+          console.error('Failed to delete hero image from Cloudinary:', err);
+        }
+      }
+    }
+
+    const updated = await prisma.contact.update({
+      where: { id: existing.id },
+      data: { heroImageUrl: null },
+      include: {
+        operationAreas: {
+          include: {
+            city: { select: { id: true, name: true, country: true } },
+          },
+          orderBy: { cityId: 'asc' },
+        },
+      },
+    });
+
+    res.json(formatContactResponse(updated));
+  } catch (e) {
+    next(e);
   }
 };

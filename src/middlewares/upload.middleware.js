@@ -26,6 +26,18 @@ const storage = new CloudinaryStorage({
   }
 });
 
+// Hero background images are rendered full-width on the landing page, so the
+// stricter 1200x900 limit used for car/part photos is too small. This storage
+// caps at 2400x1200 (limit = keeps aspect ratio, only shrinks oversize input).
+const heroStorage = new CloudinaryStorage({
+  cloudinary: cloudinary,
+  params: async () => ({
+    folder: 'site-settings/hero',
+    allowed_formats: ['jpg', 'jpeg', 'png', 'webp'],
+    transformation: [{ width: 2400, height: 1200, crop: 'limit', quality: 'auto:good' }],
+  }),
+});
+
 // File filter - only allow images
 const fileFilter = (req, file, cb) => {
   const allowedMimes = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp'];
@@ -43,6 +55,15 @@ export const upload = multer({
   limits: {
     fileSize: 5 * 1024 * 1024, // 5MB max file size
   }
+});
+
+// Hero image uploader: same file filter, slightly larger size budget.
+export const uploadHero = multer({
+  storage: heroStorage,
+  fileFilter,
+  limits: {
+    fileSize: 8 * 1024 * 1024, // 8MB max - hero images can be wider
+  },
 });
 
 export { cloudinary };

@@ -2,6 +2,7 @@ import prisma from '../models/db.js';
 import { badRequest, notFound, conflict } from '../errors.js';
 import { rentalEndNeedsPrepDay, nextPrepDayRangeUtc } from '../lib/rentalPrep.js';
 import { calculateDynamicPrice } from '../pricing/pricing.service.js';
+import { calculateRequiredDeposit } from '../pricing/calculators/deposit.calculator.js';
 import {
   acquireContractEditLock,
   releaseContractEditLock,
@@ -10,6 +11,23 @@ import {
   attachLockMeta,
   contractWithLockInclude,
 } from '../lib/contractEditLock.js';
+
+/**
+ * Derive and attach the `requiredDeposit` field (in euro) onto a contract
+ * response. Duration-based per the deposit calculator policy.
+ */
+function attachDeposit(contract) {
+  if (!contract) return contract;
+  return {
+    ...contract,
+    requiredDeposit: calculateRequiredDeposit(contract.startDate, contract.endDate),
+  };
+}
+
+/** Compose `attachLockMeta` + `attachDeposit` for the common case. */
+function decorateContract(contract) {
+  return attachDeposit(attachLockMeta(contract));
+}
 
 const asInt = (v) => { const n = Number(v); return Number.isInteger(n) ? n : null; };
 const asNum = (v) => { const n = Number(v); return Number.isFinite(n) ? n : null; };
@@ -77,7 +95,7 @@ export const listContracts = async (req, res, next) => {
       orderBy: { startDate: 'desc' },
       include: contractWithLockInclude,
     });
-    res.json(items.map(attachLockMeta));
+    res.json(items.map(decorateContract));
   } catch (e) { next(e); }
 };
 
@@ -117,7 +135,7 @@ export const getMyContracts = async (req, res, next) => {
         }
       }
     });
-    res.json(items);
+    res.json(items.map(attachDeposit));
   } catch (e) { next(e); }
 };
 
@@ -136,7 +154,7 @@ export const getContract = async (req, res, next) => {
     if (!isOwnerOrAdmin(req, item.userId)) {
       return res.status(403).json({ error: 'Forbidden' });
     }
-    res.json(attachLockMeta(item));
+    res.json(decorateContract(item));
   } catch (e) { next(e); }
 };
 
@@ -251,7 +269,7 @@ export const createContract = async (req, res, next) => {
       }
     });
 
-    res.status(201).json(created);
+    res.status(201).json(attachDeposit(created));
   } catch (e) {
     if (e?.code === 'P2003') return res.status(400).json({ error: 'Foreign key constraint (carId) failed' });
     next(e);
@@ -374,7 +392,7 @@ export const updateContract = async (req, res, next) => {
     }
 
     const updated = await prisma.contract.update({ where: { id }, data: upd });
-    res.json(updated);
+    res.json(attachDeposit(updated));
   } catch (e) {
     if (e?.code === 'P2003') return res.status(400).json({ error: 'Foreign key constraint (carId) failed' });
     if (e?.code === 'P2025') return res.status(404).json({ error: 'Contract not found' });
@@ -405,7 +423,7 @@ export const deleteContract = async (req, res, next) => {
     if (req.user?.role === 'ADMIN') {
       await clearContractEditLock(id);
     }
-    res.status(200).json(item);
+    res.status(200).json(attachDeposit(item));
   } catch (e) {
     if (e?.code === 'P2025') return res.status(404).json({ error: 'Contract not found' });
     next(e);
@@ -507,7 +525,7 @@ export const completeContract = async (req, res, next) => {
       where: { id },
       include: contractWithLockInclude,
     });
-    res.json(attachLockMeta(updated));
+    res.json(decorateContract(updated));
   } catch (e) { next(e); }
 };
 
@@ -530,7 +548,8 @@ export const activateContract = async (req, res, next) => {
     }
 
     if (!current.depositConfirmed) {
-      throw conflict('Cannot activate reservation until the €50 deposit is confirmed');
+      const requiredDeposit = calculateRequiredDeposit(current.startDate, current.endDate);
+      throw conflict(`Cannot activate reservation until the €${requiredDeposit} deposit is confirmed`);
     }
 
     const updated = await prisma.$transaction(async (tx) => {
@@ -546,7 +565,7 @@ export const activateContract = async (req, res, next) => {
     });
 
     await clearContractEditLock(id);
-    res.json(attachLockMeta(updated));
+    res.json(decorateContract(updated));
   } catch (e) {
     if (e?.code === 'P2025') return res.status(404).json({ error: 'Contract not found' });
     next(e);
@@ -595,14 +614,14 @@ export const cancelContract = async (req, res, next) => {
       await clearContractEditLock(id);
     }
 
-    res.json(updated);
+    res.json(attachDeposit(updated));
   } catch (e) {
     if (e?.code === 'P2025') return res.status(404).json({ error: 'Contract not found' });
     next(e);
   }
 };
 
-// POST /contracts/:id/confirm-deposit — admin marks €50 deposit as received
+// POST /contracts/:id/confirm-deposit — admin marks deposit as received
 export const confirmContractDeposit = async (req, res, next) => {
   try {
     const id = asInt(req.params.id);
@@ -621,7 +640,7 @@ export const confirmContractDeposit = async (req, res, next) => {
     }
 
     if (current.depositConfirmed) {
-      return res.json(attachLockMeta(current));
+      return res.json(decorateContract(current));
     }
 
     const updated = await prisma.contract.update({
@@ -630,7 +649,7 @@ export const confirmContractDeposit = async (req, res, next) => {
       include: contractWithLockInclude,
     });
 
-    res.json(attachLockMeta(updated));
+    res.json(decorateContract(updated));
   } catch (e) {
     if (e?.code === 'P2025') return res.status(404).json({ error: 'Contract not found' });
     next(e);
@@ -644,7 +663,7 @@ export const acquireContractLock = async (req, res, next) => {
     if (id === null) throw badRequest('id must be an integer');
 
     const updated = await acquireContractEditLock(id, req.user.id);
-    res.json(updated);
+    res.json(attachDeposit(updated));
   } catch (e) { next(e); }
 };
 
@@ -655,6 +674,6 @@ export const releaseContractLock = async (req, res, next) => {
     if (id === null) throw badRequest('id must be an integer');
 
     const updated = await releaseContractEditLock(id, req.user.id);
-    res.json(updated);
+    res.json(attachDeposit(updated));
   } catch (e) { next(e); }
 };
