@@ -113,7 +113,9 @@ export async function login(req, res, next) {
       return res.status(401).json({ error: 'Invalid credentials' });
     }
 
-    if (!user.emailVerified) {
+    // Admins are exempt from email verification (defense-in-depth against a
+    // stale DB state where the grandfather migration hasn't run yet).
+    if (user.role !== 'ADMIN' && !user.emailVerified) {
       return res.status(403).json({
         error: 'EMAIL_NOT_VERIFIED',
         message: 'Please verify your email address before signing in.',

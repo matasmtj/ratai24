@@ -138,7 +138,7 @@ describe('POST /auth/login', () => {
     expect(res.body.role).toBe('USER');
   });
 
-  it('returns 403 EMAIL_NOT_VERIFIED when the user has not verified their address', async () => {
+  it('returns 403 EMAIL_NOT_VERIFIED when a non-admin user has not verified their address', async () => {
     const passwordHash = await bcrypt.hash('Password1', 10);
     harness.prisma.user.findUnique.mockResolvedValue({
       id: 1,
@@ -154,6 +154,28 @@ describe('POST /auth/login', () => {
 
     expect(res.status).toBe(403);
     expect(res.body.error).toBe('EMAIL_NOT_VERIFIED');
+  });
+
+  it('allows an admin to log in even if emailVerified is false (grandfathered/bypass)', async () => {
+    const passwordHash = await bcrypt.hash('Password1', 10);
+    harness.prisma.user.findUnique.mockResolvedValue({
+      id: 1,
+      email: 'admin@example.com',
+      passwordHash,
+      role: 'ADMIN',
+      emailVerified: false,
+    });
+    harness.prisma.refreshToken.create.mockResolvedValue({
+      token: 'refresh-token',
+    });
+
+    const res = await request(harness.app)
+      .post('/auth/login')
+      .send({ email: 'admin@example.com', password: 'Password1' });
+
+    expect(res.status).toBe(200);
+    expect(res.body.role).toBe('ADMIN');
+    expect(res.body.accessToken).toEqual(expect.any(String));
   });
 
   it('rejects unknown user with 401', async () => {
