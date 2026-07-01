@@ -218,6 +218,8 @@ export const createUser = async (req, res, next) => {
         lastName: lastName ? String(lastName).trim() : null,
         phoneNumber: phoneNumber ? String(phoneNumber).trim() : null,
         role: userRole,
+        emailVerified: true,
+        emailVerifiedAt: new Date(),
       },
       select: {
         id: true,
@@ -226,6 +228,7 @@ export const createUser = async (req, res, next) => {
         lastName: true,
         phoneNumber: true,
         role: true,
+        emailVerified: true,
         createdAt: true,
         updatedAt: true,
       },

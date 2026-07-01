@@ -3,14 +3,14 @@ import bcrypt from 'bcryptjs';
 import prisma from '../models/db.js';
 import { config } from '../config.js';
 import { signAccessToken, issueRefreshToken, rotateRefreshToken, revokeRefreshToken } from '../services/token.service.js';
-import { sendPasswordResetEmail } from '../services/email.service.js';
+import { sendPasswordResetEmail, sendVerificationEmail } from '../services/email.service.js';
 import { validatePasswordStrength } from '../lib/passwordValidation.js';
 import { badRequest } from '../errors.js';
 
 const isValidEmail = (email) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
-const validRoles = ['GUEST', 'USER', 'ADMIN'];
 
 const RESET_MSG = 'We sent a message to that email address.';
+const VERIFICATION_MSG = 'If the address is registered and unverified, a verification email has been sent.';
 const SUPPORTED_RESET_LANGUAGES = new Set(['lt', 'en', 'ru']);
 
 function normalizeResetLanguage(value) {
@@ -27,36 +27,68 @@ function generateResetToken() {
   return crypto.randomBytes(32).toString('hex');
 }
 
+// Verification tokens use the same primitives as reset tokens. Aliased for clarity.
+const hashVerificationToken = hashResetToken;
+const generateVerificationToken = generateResetToken;
+
+async function issueVerificationEmail(user, language) {
+  const plainToken = generateVerificationToken();
+  const tokenHash = hashVerificationToken(plainToken);
+  const expiresAt = new Date(
+    Date.now() + config.emailVerificationExpiresHours * 60 * 60 * 1000
+  );
+
+  await prisma.$transaction([
+    prisma.emailVerificationToken.deleteMany({ where: { userId: user.id } }),
+    prisma.emailVerificationToken.create({
+      data: { tokenHash, userId: user.id, expiresAt },
+    }),
+  ]);
+
+  const verifyUrl = `${config.frontendUrl}/verify-email?token=${encodeURIComponent(plainToken)}`;
+
+  await sendVerificationEmail({ to: user.email, verifyUrl, language });
+}
+
 export async function register(req, res, next) {
   try {
-    const { email, password, role } = req.body || {};
-    
-    // Validate email
+    const { email, password, language } = req.body || {};
+
     if (!email || !isValidEmail(email)) {
       throw badRequest('Valid email is required');
     }
-    
+
     const pwCheck = validatePasswordStrength(password);
     if (!pwCheck.ok) {
       throw badRequest(pwCheck.error);
     }
-    
-    // Validate role (if provided)
-    if (role && !validRoles.includes(role)) {
-      throw badRequest(`Role must be one of: ${validRoles.join(', ')}`);
-    }
-    
+
+    // Public registration always creates a USER. Elevated roles must be
+    // created via the admin-only POST /users endpoint.
     const passwordHash = await bcrypt.hash(password, 10);
-    const user = await prisma.user.create({ 
-      data: { 
-        email: email.toLowerCase().trim(), 
-        passwordHash, 
-        role: role || 'USER' 
-      } 
+    const user = await prisma.user.create({
+      data: {
+        email: email.toLowerCase().trim(),
+        passwordHash,
+        role: 'USER',
+        emailVerified: false,
+      },
     });
-    res.status(201).json({ id: user.id, email: user.email, role: user.role });
+
+    try {
+      await issueVerificationEmail(user, language);
+    } catch (e) {
+      console.error('[auth] verification email failed on register:', e);
+    }
+
+    res.status(201).json({
+      id: user.id,
+      email: user.email,
+      role: user.role,
+      emailVerified: user.emailVerified,
+      message: 'VERIFICATION_EMAIL_SENT',
+    });
   } catch (e) {
-    // Handle duplicate email
     if (e?.code === 'P2002') {
       return res.status(409).json({ error: 'Email already registered' });
     }
@@ -67,25 +99,32 @@ export async function register(req, res, next) {
 export async function login(req, res, next) {
   try {
     const { email, password } = req.body || {};
-    
+
     if (!email || !isValidEmail(email)) {
       throw badRequest('Valid email is required');
     }
-    
+
     if (!password || typeof password !== 'string') {
       throw badRequest('Password is required');
     }
-    
+
     const user = await prisma.user.findUnique({ where: { email: email.toLowerCase().trim() } });
     if (!user || !(await bcrypt.compare(password, user.passwordHash))) {
       return res.status(401).json({ error: 'Invalid credentials' });
     }
-    
+
+    if (!user.emailVerified) {
+      return res.status(403).json({
+        error: 'EMAIL_NOT_VERIFIED',
+        message: 'Please verify your email address before signing in.',
+      });
+    }
+
     const access = signAccessToken(user);
     const { token: refresh, expiresAt } = await issueRefreshToken(user.id);
     res.json({ accessToken: access, refreshToken: refresh, refreshExpiresAt: expiresAt, role: user.role });
-  } catch (e) { 
-    next(e); 
+  } catch (e) {
+    next(e);
   }
 }
 
@@ -191,6 +230,63 @@ export async function resetPassword(req, res, next) {
     ]);
 
     res.status(204).send();
+  } catch (e) {
+    next(e);
+  }
+}
+
+export async function verifyEmail(req, res, next) {
+  try {
+    const { token } = req.body || {};
+    if (!token || typeof token !== 'string' || token.length < 32) {
+      return res.status(400).json({ error: 'INVALID_TOKEN' });
+    }
+
+    const tokenHash = hashVerificationToken(token);
+    const record = await prisma.emailVerificationToken.findUnique({
+      where: { tokenHash },
+    });
+
+    if (!record) {
+      return res.status(400).json({ error: 'INVALID_TOKEN' });
+    }
+    if (record.expiresAt < new Date()) {
+      return res.status(400).json({ error: 'EXPIRED_TOKEN' });
+    }
+
+    await prisma.$transaction([
+      prisma.user.update({
+        where: { id: record.userId },
+        data: { emailVerified: true, emailVerifiedAt: new Date() },
+      }),
+      prisma.emailVerificationToken.deleteMany({ where: { userId: record.userId } }),
+    ]);
+
+    res.status(204).send();
+  } catch (e) {
+    next(e);
+  }
+}
+
+export async function resendVerification(req, res, next) {
+  try {
+    const { email, language } = req.body || {};
+    if (!email || !isValidEmail(String(email).trim())) {
+      throw badRequest('Valid email is required');
+    }
+
+    const normalized = String(email).toLowerCase().trim();
+    const user = await prisma.user.findUnique({ where: { email: normalized } });
+
+    if (user && !user.emailVerified) {
+      try {
+        await issueVerificationEmail(user, language);
+      } catch (e) {
+        console.error('[auth] resend-verification email failed:', e);
+      }
+    }
+
+    res.status(200).json({ message: VERIFICATION_MSG });
   } catch (e) {
     next(e);
   }

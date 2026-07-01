@@ -1,8 +1,8 @@
 /**
  * Integration tests for /auth endpoints.
  *
- * Covers registration, login, refresh and logout happy paths plus the
- * most important validation failures.
+ * Covers registration, login, refresh, logout and the email verification
+ * flow plus the most important validation failures.
  */
 import {
   describe,
@@ -13,6 +13,7 @@ import {
 } from '@jest/globals';
 import request from 'supertest';
 import bcrypt from 'bcryptjs';
+import crypto from 'crypto';
 import { setupTestApp } from './helpers/testApp.js';
 
 let harness;
@@ -26,21 +27,38 @@ beforeEach(() => {
 });
 
 describe('POST /auth/register', () => {
-  it('creates a user with valid credentials (201)', async () => {
+  it('creates a user with valid credentials (201) and reports verification email sent', async () => {
     harness.prisma.user.create.mockResolvedValue({
       id: 1,
       email: 'new@example.com',
       role: 'USER',
+      emailVerified: false,
     });
+    harness.prisma.emailVerificationToken.deleteMany.mockResolvedValue({ count: 0 });
+    harness.prisma.emailVerificationToken.create.mockResolvedValue({});
+
     const res = await request(harness.app)
       .post('/auth/register')
       .send({ email: 'new@example.com', password: 'Password1' });
+
     expect(res.status).toBe(201);
     expect(res.body).toEqual({
       id: 1,
       email: 'new@example.com',
       role: 'USER',
+      emailVerified: false,
+      message: 'VERIFICATION_EMAIL_SENT',
     });
+    // The created user is always a USER and starts unverified.
+    expect(harness.prisma.user.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          email: 'new@example.com',
+          role: 'USER',
+          emailVerified: false,
+        }),
+      })
+    );
   });
 
   it('rejects invalid emails with 400', async () => {
@@ -59,16 +77,31 @@ describe('POST /auth/register', () => {
     expect(res.body.error).toMatch(/password/i);
   });
 
-  it('rejects invalid roles with 400', async () => {
+  it('ignores client-supplied role and always creates a USER (anti-privilege-escalation)', async () => {
+    harness.prisma.user.create.mockResolvedValue({
+      id: 2,
+      email: 'sneaky@example.com',
+      role: 'USER',
+      emailVerified: false,
+    });
+    harness.prisma.emailVerificationToken.deleteMany.mockResolvedValue({ count: 0 });
+    harness.prisma.emailVerificationToken.create.mockResolvedValue({});
+
     const res = await request(harness.app)
       .post('/auth/register')
       .send({
-        email: 'u@example.com',
+        email: 'sneaky@example.com',
         password: 'Password1',
-        role: 'SUPERUSER',
+        role: 'ADMIN',
       });
-    expect(res.status).toBe(400);
-    expect(res.body.error).toMatch(/role/i);
+
+    expect(res.status).toBe(201);
+    expect(res.body.role).toBe('USER');
+    expect(harness.prisma.user.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ role: 'USER' }),
+      })
+    );
   });
 
   it('returns 409 on duplicate email', async () => {
@@ -82,13 +115,14 @@ describe('POST /auth/register', () => {
 });
 
 describe('POST /auth/login', () => {
-  it('returns access + refresh tokens on success', async () => {
+  it('returns access + refresh tokens when the email is verified', async () => {
     const passwordHash = await bcrypt.hash('Password1', 10);
     harness.prisma.user.findUnique.mockResolvedValue({
       id: 1,
       email: 'u@example.com',
       passwordHash,
       role: 'USER',
+      emailVerified: true,
     });
     harness.prisma.refreshToken.create.mockResolvedValue({
       token: 'refresh-token',
@@ -102,6 +136,24 @@ describe('POST /auth/login', () => {
     expect(res.body.accessToken).toEqual(expect.any(String));
     expect(res.body.refreshToken).toEqual(expect.any(String));
     expect(res.body.role).toBe('USER');
+  });
+
+  it('returns 403 EMAIL_NOT_VERIFIED when the user has not verified their address', async () => {
+    const passwordHash = await bcrypt.hash('Password1', 10);
+    harness.prisma.user.findUnique.mockResolvedValue({
+      id: 1,
+      email: 'unverified@example.com',
+      passwordHash,
+      role: 'USER',
+      emailVerified: false,
+    });
+
+    const res = await request(harness.app)
+      .post('/auth/login')
+      .send({ email: 'unverified@example.com', password: 'Password1' });
+
+    expect(res.status).toBe(403);
+    expect(res.body.error).toBe('EMAIL_NOT_VERIFIED');
   });
 
   it('rejects unknown user with 401', async () => {
@@ -119,6 +171,7 @@ describe('POST /auth/login', () => {
       email: 'u@example.com',
       passwordHash,
       role: 'USER',
+      emailVerified: true,
     });
     const res = await request(harness.app)
       .post('/auth/login')
@@ -139,5 +192,115 @@ describe('POST /auth/logout', () => {
       .post('/auth/logout')
       .send({ refreshToken: 'some-token' });
     expect(res.status).toBe(204);
+  });
+});
+
+describe('POST /auth/verify-email', () => {
+  const plainToken = crypto.randomBytes(32).toString('hex');
+  const tokenHash = crypto.createHash('sha256').update(plainToken, 'utf8').digest('hex');
+
+  it('verifies the user and clears all of their verification tokens (204)', async () => {
+    harness.prisma.emailVerificationToken.findUnique.mockResolvedValue({
+      id: 1,
+      tokenHash,
+      userId: 42,
+      expiresAt: new Date(Date.now() + 60 * 60 * 1000),
+    });
+    harness.prisma.user.update.mockResolvedValue({});
+    harness.prisma.emailVerificationToken.deleteMany.mockResolvedValue({ count: 1 });
+
+    const res = await request(harness.app)
+      .post('/auth/verify-email')
+      .send({ token: plainToken });
+
+    expect(res.status).toBe(204);
+    expect(harness.prisma.user.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: 42 },
+        data: expect.objectContaining({
+          emailVerified: true,
+          emailVerifiedAt: expect.any(Date),
+        }),
+      })
+    );
+  });
+
+  it('returns 400 INVALID_TOKEN when the token is missing or too short', async () => {
+    const res = await request(harness.app)
+      .post('/auth/verify-email')
+      .send({ token: 'short' });
+    expect(res.status).toBe(400);
+    expect(res.body.error).toBe('INVALID_TOKEN');
+  });
+
+  it('returns 400 INVALID_TOKEN when the token is unknown', async () => {
+    harness.prisma.emailVerificationToken.findUnique.mockResolvedValue(null);
+    const res = await request(harness.app)
+      .post('/auth/verify-email')
+      .send({ token: plainToken });
+    expect(res.status).toBe(400);
+    expect(res.body.error).toBe('INVALID_TOKEN');
+  });
+
+  it('returns 400 EXPIRED_TOKEN when the token has expired', async () => {
+    harness.prisma.emailVerificationToken.findUnique.mockResolvedValue({
+      id: 1,
+      tokenHash,
+      userId: 42,
+      expiresAt: new Date(Date.now() - 60 * 1000),
+    });
+    const res = await request(harness.app)
+      .post('/auth/verify-email')
+      .send({ token: plainToken });
+    expect(res.status).toBe(400);
+    expect(res.body.error).toBe('EXPIRED_TOKEN');
+  });
+});
+
+describe('POST /auth/resend-verification', () => {
+  it('returns a generic 200 even when the email is unknown (no enumeration)', async () => {
+    harness.prisma.user.findUnique.mockResolvedValue(null);
+    const res = await request(harness.app)
+      .post('/auth/resend-verification')
+      .send({ email: 'nobody@example.com' });
+    expect(res.status).toBe(200);
+    expect(harness.prisma.emailVerificationToken.create).not.toHaveBeenCalled();
+  });
+
+  it('does not issue a new token for already-verified users', async () => {
+    harness.prisma.user.findUnique.mockResolvedValue({
+      id: 1,
+      email: 'verified@example.com',
+      emailVerified: true,
+    });
+    const res = await request(harness.app)
+      .post('/auth/resend-verification')
+      .send({ email: 'verified@example.com' });
+    expect(res.status).toBe(200);
+    expect(harness.prisma.emailVerificationToken.create).not.toHaveBeenCalled();
+  });
+
+  it('issues a new token for unverified users', async () => {
+    harness.prisma.user.findUnique.mockResolvedValue({
+      id: 1,
+      email: 'pending@example.com',
+      emailVerified: false,
+    });
+    harness.prisma.emailVerificationToken.deleteMany.mockResolvedValue({ count: 0 });
+    harness.prisma.emailVerificationToken.create.mockResolvedValue({});
+
+    const res = await request(harness.app)
+      .post('/auth/resend-verification')
+      .send({ email: 'pending@example.com' });
+
+    expect(res.status).toBe(200);
+    expect(harness.prisma.emailVerificationToken.create).toHaveBeenCalledTimes(1);
+  });
+
+  it('returns 400 on an invalid email', async () => {
+    const res = await request(harness.app)
+      .post('/auth/resend-verification')
+      .send({ email: 'not-an-email' });
+    expect(res.status).toBe(400);
   });
 });

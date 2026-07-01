@@ -21,6 +21,7 @@ export const config = {
   /** Public site URL for password reset links (no trailing slash), e.g. http://localhost:5173 */
   frontendUrl: (process.env.FRONTEND_URL || 'http://localhost:5173').replace(/\/$/, ''),
   passwordResetExpiresHours: Number(process.env.PASSWORD_RESET_EXPIRES_HOURS || 1),
+  emailVerificationExpiresHours: Number(process.env.EMAIL_VERIFICATION_EXPIRES_HOURS || 24),
   /**
    * Resend recommends "Name <email@domain>". Default uses their shared test domain.
    * For production, verify your domain in Resend and set EMAIL_FROM to e.g. "Ratai24 <noreply@yourdomain.com>".

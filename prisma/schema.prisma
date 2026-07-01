@@ -146,21 +146,35 @@ model Contract {
 }
 
 model User {
-  id                   Int                   @id @default(autoincrement())
-  email                String                @unique
-  passwordHash         String
-  firstName            String?
-  lastName             String?
-  phoneNumber          String?
-  role                 Role                  @default(USER)
-  refreshTokens        RefreshToken[]
-  passwordResetTokens  PasswordResetToken[]
-  contractEditLocks    Contract[]            @relation("ContractEditLock")
-  createdAt            DateTime              @default(now())
-  updatedAt            DateTime              @updatedAt
+  id                       Int                        @id @default(autoincrement())
+  email                    String                     @unique
+  passwordHash             String
+  firstName                String?
+  lastName                 String?
+  phoneNumber              String?
+  role                     Role                       @default(USER)
+  emailVerified            Boolean                    @default(false)
+  emailVerifiedAt          DateTime?
+  refreshTokens            RefreshToken[]
+  passwordResetTokens      PasswordResetToken[]
+  emailVerificationTokens  EmailVerificationToken[]
+  contractEditLocks        Contract[]                 @relation("ContractEditLock")
+  createdAt                DateTime                   @default(now())
+  updatedAt                DateTime                   @updatedAt
 }
 
 model PasswordResetToken {
+  id        Int      @id @default(autoincrement())
+  tokenHash String   @unique
+  userId    Int
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+}
+
+model EmailVerificationToken {
   id        Int      @id @default(autoincrement())
   tokenHash String   @unique
   userId    Int
