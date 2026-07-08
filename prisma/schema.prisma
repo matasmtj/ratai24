@@ -148,7 +148,8 @@ model Contract {
 model User {
   id                       Int                        @id @default(autoincrement())
   email                    String                     @unique
-  passwordHash             String
+  passwordHash             String?
+  googleId                 String?                    @unique
   firstName                String?
   lastName                 String?
   phoneNumber              String?

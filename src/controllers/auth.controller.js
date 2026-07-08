@@ -4,6 +4,7 @@ import prisma from '../models/db.js';
 import { config } from '../config.js';
 import { signAccessToken, issueRefreshToken, rotateRefreshToken, revokeRefreshToken } from '../services/token.service.js';
 import { sendPasswordResetEmail, sendVerificationEmail } from '../services/email.service.js';
+import { verifyGoogleIdToken } from '../services/googleAuth.service.js';
 import { validatePasswordStrength } from '../lib/passwordValidation.js';
 import { badRequest } from '../errors.js';
 
@@ -30,6 +31,22 @@ function generateResetToken() {
 // Verification tokens use the same primitives as reset tokens. Aliased for clarity.
 const hashVerificationToken = hashResetToken;
 const generateVerificationToken = generateResetToken;
+
+function userNeedsPhone(user) {
+  return user.role === 'USER' && !String(user.phoneNumber || '').trim();
+}
+
+async function issueAuthTokens(user, res) {
+  const access = signAccessToken(user);
+  const { token: refresh, expiresAt } = await issueRefreshToken(user.id);
+  res.json({
+    accessToken: access,
+    refreshToken: refresh,
+    refreshExpiresAt: expiresAt,
+    role: user.role,
+    needsPhone: userNeedsPhone(user),
+  });
+}
 
 async function issueVerificationEmail(user, language) {
   const plainToken = generateVerificationToken();
@@ -109,7 +126,13 @@ export async function login(req, res, next) {
     }
 
     const user = await prisma.user.findUnique({ where: { email: email.toLowerCase().trim() } });
-    if (!user || !(await bcrypt.compare(password, user.passwordHash))) {
+    if (!user) {
+      return res.status(401).json({ error: 'Invalid credentials' });
+    }
+    if (!user.passwordHash) {
+      return res.status(401).json({ error: 'USE_GOOGLE_SIGNIN' });
+    }
+    if (!(await bcrypt.compare(password, user.passwordHash))) {
       return res.status(401).json({ error: 'Invalid credentials' });
     }
 
@@ -122,9 +145,7 @@ export async function login(req, res, next) {
       });
     }
 
-    const access = signAccessToken(user);
-    const { token: refresh, expiresAt } = await issueRefreshToken(user.id);
-    res.json({ accessToken: access, refreshToken: refresh, refreshExpiresAt: expiresAt, role: user.role });
+    await issueAuthTokens(user, res);
   } catch (e) {
     next(e);
   }
@@ -290,6 +311,74 @@ export async function resendVerification(req, res, next) {
 
     res.status(200).json({ message: VERIFICATION_MSG });
   } catch (e) {
+    next(e);
+  }
+}
+
+export async function googleAuth(req, res, next) {
+  try {
+    const { credential } = req.body || {};
+    if (!credential || typeof credential !== 'string') {
+      throw badRequest('Google credential is required');
+    }
+    if (!config.googleClientId) {
+      return res.status(503).json({ error: 'Google sign-in is not configured' });
+    }
+
+    let profile;
+    try {
+      profile = await verifyGoogleIdToken(credential);
+    } catch (e) {
+      console.error('[auth] Google token verification failed:', e);
+      return res.status(401).json({ error: 'Invalid Google credential' });
+    }
+
+    if (!profile.emailVerified) {
+      return res.status(403).json({ error: 'GOOGLE_EMAIL_NOT_VERIFIED' });
+    }
+
+    let user = await prisma.user.findUnique({ where: { googleId: profile.googleId } });
+
+    if (!user) {
+      user = await prisma.user.findUnique({ where: { email: profile.email } });
+    }
+
+    if (user) {
+      if (user.googleId && user.googleId !== profile.googleId) {
+        return res.status(409).json({ error: 'Email linked to a different Google account' });
+      }
+
+      const updates = {
+        googleId: profile.googleId,
+        emailVerified: true,
+        emailVerifiedAt: user.emailVerifiedAt || new Date(),
+      };
+      if (!user.firstName && profile.firstName) updates.firstName = profile.firstName;
+      if (!user.lastName && profile.lastName) updates.lastName = profile.lastName;
+
+      user = await prisma.user.update({
+        where: { id: user.id },
+        data: updates,
+      });
+    } else {
+      user = await prisma.user.create({
+        data: {
+          email: profile.email,
+          googleId: profile.googleId,
+          firstName: profile.firstName,
+          lastName: profile.lastName,
+          role: 'USER',
+          emailVerified: true,
+          emailVerifiedAt: new Date(),
+        },
+      });
+    }
+
+    await issueAuthTokens(user, res);
+  } catch (e) {
+    if (e?.code === 'P2002') {
+      return res.status(409).json({ error: 'Account conflict — try another sign-in method' });
+    }
     next(e);
   }
 }

@@ -29,6 +29,8 @@ export const config = {
   emailFrom:
     cleanEnvString(process.env.EMAIL_FROM) || 'Ratai24 <onboarding@resend.dev>',
   resendApiKey: cleanEnvString(process.env.RESEND_API_KEY),
+  /** Google OAuth client ID (same value as VITE_GOOGLE_CLIENT_ID on the frontend). */
+  googleClientId: cleanEnvString(process.env.GOOGLE_CLIENT_ID),
   cloudinary: {
     cloudName: process.env.CLOUDINARY_CLOUD_NAME,
     apiKey: process.env.CLOUDINARY_API_KEY,

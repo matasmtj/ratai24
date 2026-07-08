@@ -66,7 +66,9 @@ export const updateMe = async (req, res, next) => {
       updates.lastName = data.lastName ? String(data.lastName).trim() : null;
     }
     if (data.phoneNumber !== undefined) {
-      updates.phoneNumber = data.phoneNumber ? String(data.phoneNumber).trim() : null;
+      const phone = data.phoneNumber ? String(data.phoneNumber).trim() : '';
+      if (!phone) throw badRequest('Phone number is required');
+      updates.phoneNumber = phone;
     }
 
     // Password update

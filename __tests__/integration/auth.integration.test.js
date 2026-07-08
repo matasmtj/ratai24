@@ -123,6 +123,7 @@ describe('POST /auth/login', () => {
       passwordHash,
       role: 'USER',
       emailVerified: true,
+      phoneNumber: '+37060000000',
     });
     harness.prisma.refreshToken.create.mockResolvedValue({
       token: 'refresh-token',
@@ -136,6 +137,29 @@ describe('POST /auth/login', () => {
     expect(res.body.accessToken).toEqual(expect.any(String));
     expect(res.body.refreshToken).toEqual(expect.any(String));
     expect(res.body.role).toBe('USER');
+    expect(res.body.needsPhone).toBe(false);
+  });
+
+  it('returns needsPhone true when USER has no phone number', async () => {
+    const passwordHash = await bcrypt.hash('Password1', 10);
+    harness.prisma.user.findUnique.mockResolvedValue({
+      id: 1,
+      email: 'nophone@example.com',
+      passwordHash,
+      role: 'USER',
+      emailVerified: true,
+      phoneNumber: null,
+    });
+    harness.prisma.refreshToken.create.mockResolvedValue({
+      token: 'refresh-token',
+    });
+
+    const res = await request(harness.app)
+      .post('/auth/login')
+      .send({ email: 'nophone@example.com', password: 'Password1' });
+
+    expect(res.status).toBe(200);
+    expect(res.body.needsPhone).toBe(true);
   });
 
   it('returns 403 EMAIL_NOT_VERIFIED when a non-admin user has not verified their address', async () => {
@@ -184,6 +208,24 @@ describe('POST /auth/login', () => {
       .post('/auth/login')
       .send({ email: 'ghost@example.com', password: 'Password1' });
     expect(res.status).toBe(401);
+  });
+
+  it('returns 401 USE_GOOGLE_SIGNIN when account has no password', async () => {
+    harness.prisma.user.findUnique.mockResolvedValue({
+      id: 1,
+      email: 'googleonly@example.com',
+      passwordHash: null,
+      role: 'USER',
+      emailVerified: true,
+      googleId: 'google-sub-123',
+    });
+
+    const res = await request(harness.app)
+      .post('/auth/login')
+      .send({ email: 'googleonly@example.com', password: 'Password1' });
+
+    expect(res.status).toBe(401);
+    expect(res.body.error).toBe('USE_GOOGLE_SIGNIN');
   });
 
   it('rejects bad password with 401', async () => {
