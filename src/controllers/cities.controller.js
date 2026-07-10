@@ -1,5 +1,5 @@
 import prisma from '../models/db.js';
-import { badRequest, notFound } from '../errors.js';
+import { badRequest, notFound, conflict } from '../errors.js';
 
 const asInt = (v) => { const n = Number(v); return Number.isInteger(n) ? n : null; };
 const isNonEmptyString = (v) => typeof v === 'string' && v.trim().length > 0;
@@ -84,7 +84,18 @@ export const deleteCity = async (req, res, next) => {
     const city = await prisma.city.findUnique({ where: { id }, select: cityPublic });
     if (!city) throw notFound('City not found');
 
-    await prisma.city.delete({ where: { id } });
+    const carCount = await prisma.car.count({ where: { cityId: id } });
+    if (carCount > 0) {
+      throw conflict('Cannot delete city while it still has registered cars. Move or remove them first.');
+    }
+
+    await prisma.$transaction(async (tx) => {
+      // Detach optional pricing config; historical snapshots keep cityId=null via FK SetNull.
+      await tx.seasonalFactor.updateMany({ where: { cityId: id }, data: { cityId: null } });
+      await tx.pricingRule.updateMany({ where: { cityId: id }, data: { cityId: null } });
+      await tx.city.delete({ where: { id } });
+    });
+
     res.status(200).json(city);
   } catch (e) {
     if (e?.code === 'P2025') return res.status(404).json({ error: 'City not found' });
