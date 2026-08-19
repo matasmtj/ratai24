@@ -114,7 +114,10 @@ model CarPrepBlock {
 
 model Contract {
   id                Int           @id @default(autoincrement())
-  userId            Int
+  userId            Int?
+  guestName         String?
+  guestPhone        String?
+  guestEmail        String?
   carId             Int
   startDate         DateTime
   endDate           DateTime

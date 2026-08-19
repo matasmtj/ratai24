@@ -5,7 +5,8 @@ import {
   listContracts, 
   getMyContracts, 
   getContract, 
-  createContract, 
+  createContract,
+  createManualContract,
   updateContract, 
   deleteContract, 
   completeContract,
@@ -19,6 +20,7 @@ import {
 const r = Router();
 r.get('/contracts', requireAuth, requireRole('ADMIN'), listContracts); // admin sees all with filtering
 r.get('/contracts/my', requireAuth, getMyContracts);                   // user sees their own
+r.post('/contracts/manual', requireAuth, requireRole('ADMIN'), createManualContract);
 r.get('/contracts/:id', requireAuth, getContract);                     // owner or admin
 r.post('/contracts', requireAuth, createContract);                     // user creates
 r.put('/contracts/:id', requireAuth, updateContract);                  // owner or admin updates

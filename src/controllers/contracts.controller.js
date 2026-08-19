@@ -39,6 +39,7 @@ const OPEN_RESERVATION_LIMIT = 3;
 const isOwnerOrAdmin = (req, userId) => {
   if (!req.user) return true;            // auth off → allow
   if (req.user.role === 'ADMIN') return true;
+  if (userId == null) return false;
   return req.user.id === userId;
 };
 
@@ -267,6 +268,74 @@ export const createContract = async (req, res, next) => {
           : {}),
         ...pricingPayload,
       }
+    });
+
+    res.status(201).json(attachDeposit(created));
+  } catch (e) {
+    if (e?.code === 'P2003') return res.status(400).json({ error: 'Foreign key constraint (carId) failed' });
+    next(e);
+  }
+};
+
+// POST /contracts/manual — admin walk-in reservation without user account
+export const createManualContract = async (req, res, next) => {
+  try {
+    const body = req.body ?? {};
+    if (typeof body !== 'object' || Array.isArray(body)) throw badRequest('body must be an object');
+
+    const { carId, startDate, endDate, guestName, guestPhone, guestEmail, notes } = body;
+
+    const carIdNum = asInt(carId);
+    if (carIdNum === null) throw badRequest('carId must be an integer');
+
+    if (!isNonEmptyString(guestName)) throw badRequest('guestName is required');
+    if (!isNonEmptyString(guestPhone)) throw badRequest('guestPhone is required');
+    if (guestEmail !== undefined && guestEmail !== null && guestEmail !== '' && typeof guestEmail !== 'string') {
+      throw badRequest('guestEmail must be a string');
+    }
+    if (notes !== undefined && notes !== null && typeof notes !== 'string') {
+      throw badRequest('notes must be a string');
+    }
+
+    const car = await prisma.car.findUnique({ where: { id: carIdNum } });
+    if (!car) throw badRequest('Invalid carId');
+    if (!car.availableForLease) throw badRequest('Car is not available for lease');
+    if (car.state === 'MAINTENANCE') throw badRequest('This car is not available for booking');
+
+    const sd = new Date(startDate);
+    const ed = new Date(endDate);
+    if (isNaN(sd) || isNaN(ed) || ed <= sd) throw badRequest('Invalid dates');
+
+    await assertNoCalendarConflict(car.id, sd, ed);
+
+    const pricing = await calculateDynamicPrice({
+      carId: car.id,
+      startDate: sd,
+      endDate: ed,
+      userId: null,
+      saveSnapshot: false,
+    });
+
+    const created = await prisma.contract.create({
+      data: {
+        userId: null,
+        carId: car.id,
+        startDate: sd,
+        endDate: ed,
+        totalPrice: pricing.totalPrice,
+        state: 'ACTIVE',
+        mileageStartKm: car.odometerKm,
+        fuelLevelStartPct: 100,
+        depositConfirmed: true,
+        guestName: guestName.trim(),
+        guestPhone: guestPhone.trim(),
+        ...(guestEmail && String(guestEmail).trim()
+          ? { guestEmail: String(guestEmail).trim() }
+          : {}),
+        ...(notes !== undefined && String(notes).trim() !== ''
+          ? { notes: String(notes).trim() }
+          : {}),
+      },
     });
 
     res.status(201).json(attachDeposit(created));
