@@ -23,8 +23,8 @@ model City {
 
 model Car {
   id                Int        @id @default(autoincrement())
-  vin               String     @unique                      // NEW: global unique
-  numberPlate       String     @unique                      // NEW: usually unique per country; we keep global unique
+  vin               String?    @unique
+  numberPlate       String?    @unique
   make              String
   model             String
   year              Int
@@ -222,6 +222,7 @@ enum BodyType {
   SEDAN
   HATCHBACK
   SUV
+  MPV
   WAGON
   COUPE
   CONVERTIBLE

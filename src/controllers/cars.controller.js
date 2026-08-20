@@ -8,12 +8,22 @@ const asNum = (v) => { const n = Number(v); return Number.isFinite(n) ? n : null
 const isNonEmptyString = (v) => typeof v === 'string' && v.trim().length > 0;
 const isVIN = (v) => typeof v === 'string' && v.trim().length === 17 && /^[A-HJ-NPR-Z0-9]{17}$/.test(v.trim().toUpperCase());
 const isPlate = (v) => typeof v === 'string' && /^[A-Z0-9\- ]{2,12}$/i.test(v.trim());
+const normalizeVin = (v) => {
+  if (v === null || v === undefined) return null;
+  const s = String(v).trim();
+  return s ? s.toUpperCase() : null;
+};
+const normalizePlate = (v) => {
+  if (v === null || v === undefined) return null;
+  const s = String(v).trim();
+  return s ? s.toUpperCase() : null;
+};
 const inRange = (n, min, max) => typeof n === 'number' && n >= min && n <= max;
 
 const FuelType = ['PETROL', 'PETROL_LPG', 'DIESEL', 'ELECTRIC', 'HYBRID_HEV', 'HYBRID_PHEV'];
 const Gearbox  = ['MANUAL', 'AUTOMATIC'];
 const BodyType = [
-  'SEDAN', 'HATCHBACK', 'SUV', 'WAGON', 'COUPE', 'CONVERTIBLE', 'VAN', 'PICKUP',
+  'SEDAN', 'HATCHBACK', 'SUV', 'MPV', 'WAGON', 'COUPE', 'CONVERTIBLE', 'VAN', 'PICKUP',
   'MINIBUS_PASSENGER', 'MINIBUS_CARGO',
 ];
 const CarState = ['AVAILABLE', 'LEASED', 'MAINTENANCE'];
@@ -169,9 +179,10 @@ export const createCar = async (req, res, next) => {
       utilizationMultiplierOverride = null,
     } = body;
 
-    // required strings
-    if (!isVIN(vin)) throw badRequest('vin must be a valid 17-character VIN (A-HJ-NPR-Z, 0-9, no I/O/Q)');
-    if (!isPlate(numberPlate)) throw badRequest('numberPlate must be 2–12 chars (letters/digits/-/space)');
+    const normalizedVin = normalizeVin(vin);
+    const normalizedPlate = normalizePlate(numberPlate);
+    if (normalizedVin && !isVIN(normalizedVin)) throw badRequest('vin must be a valid 17-character VIN (A-HJ-NPR-Z, 0-9, no I/O/Q)');
+    if (normalizedPlate && !isPlate(normalizedPlate)) throw badRequest('numberPlate must be 2–12 chars (letters/digits/-/space)');
     if (!isNonEmptyString(make))  throw badRequest('make must be a non-empty string');
     if (!isNonEmptyString(model)) throw badRequest('model must be a non-empty string');
 
@@ -246,8 +257,8 @@ export const createCar = async (req, res, next) => {
 
     const created = await prisma.car.create({
       data: {
-        vin: vin.trim().toUpperCase(),
-        numberPlate: numberPlate.trim().toUpperCase(),
+        vin: normalizedVin,
+        numberPlate: normalizedPlate,
         make: make.trim(),
         model: model.trim(),
         year: yearInt,
@@ -301,8 +312,16 @@ export const updateCar = async (req, res, next) => {
     if (typeof data !== 'object' || Array.isArray(data)) throw badRequest('body must be an object');
 
     // optional strings
-    if (data.vin !== undefined && !isVIN(data.vin))                 throw badRequest('vin must be a valid 17-character VIN');
-    if (data.numberPlate !== undefined && !isPlate(data.numberPlate)) throw badRequest('numberPlate must be 2–12 chars');
+    if (data.vin !== undefined) {
+      const normalized = normalizeVin(data.vin);
+      if (normalized && !isVIN(normalized)) throw badRequest('vin must be a valid 17-character VIN');
+      data.vin = normalized;
+    }
+    if (data.numberPlate !== undefined) {
+      const normalized = normalizePlate(data.numberPlate);
+      if (normalized && !isPlate(normalized)) throw badRequest('numberPlate must be 2–12 chars');
+      data.numberPlate = normalized;
+    }
     if (data.make !== undefined && !isNonEmptyString(data.make))    throw badRequest('make must be a non-empty string');
     if (data.model !== undefined && !isNonEmptyString(data.model))  throw badRequest('model must be a non-empty string');
 
@@ -420,8 +439,7 @@ export const updateCar = async (req, res, next) => {
     }
 
     // trim/normalize strings
-    if (data.vin)         data.vin         = data.vin.trim().toUpperCase();
-    if (data.numberPlate) data.numberPlate = data.numberPlate.trim().toUpperCase();
+    if (data.make)        data.make        = data.make.trim();
     if (data.make)        data.make        = data.make.trim();
     if (data.model)       data.model       = data.model.trim();
     if (data.colour !== undefined) data.colour = data.colour ? String(data.colour).trim() : null;

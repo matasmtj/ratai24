@@ -11,7 +11,7 @@ const PartCondition = ['NEW', 'USED', 'DAMAGED'];
 const FuelType = ['PETROL', 'PETROL_LPG', 'DIESEL', 'ELECTRIC', 'HYBRID_HEV', 'HYBRID_PHEV'];
 const Gearbox = ['MANUAL', 'AUTOMATIC'];
 const BodyType = [
-  'SEDAN', 'HATCHBACK', 'SUV', 'WAGON', 'COUPE', 'CONVERTIBLE', 'VAN', 'PICKUP',
+  'SEDAN', 'HATCHBACK', 'SUV', 'MPV', 'WAGON', 'COUPE', 'CONVERTIBLE', 'VAN', 'PICKUP',
   'MINIBUS_PASSENGER', 'MINIBUS_CARGO',
 ];
 
