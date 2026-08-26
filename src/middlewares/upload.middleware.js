@@ -5,10 +5,16 @@ import { CloudinaryStorage } from 'multer-storage-cloudinary';
 import { config } from '../config.js';
 
 // Configure Cloudinary
+const { cloudName, apiKey, apiSecret } = config.cloudinary;
+if (!cloudName || !apiKey || !apiSecret) {
+  console.warn(
+    '[upload] CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY, and CLOUDINARY_API_SECRET must be set — image uploads will fail.',
+  );
+}
 cloudinary.config({
-  cloud_name: config.cloudinary.cloudName,
-  api_key: config.cloudinary.apiKey,
-  api_secret: config.cloudinary.apiSecret,
+  cloud_name: cloudName,
+  api_key: apiKey,
+  api_secret: apiSecret,
 });
 
 // Configure Cloudinary storage with dynamic folder
@@ -48,12 +54,15 @@ const fileFilter = (req, file, cb) => {
   }
 };
 
+// Max upload size for car/part gallery images (admin-only; Cloudinary resizes after upload).
+export const MAX_CAR_IMAGE_SIZE_BYTES = 10 * 1024 * 1024;
+
 // Create multer instance
 export const upload = multer({
   storage,
   fileFilter,
   limits: {
-    fileSize: 5 * 1024 * 1024, // 5MB max file size
+    fileSize: MAX_CAR_IMAGE_SIZE_BYTES,
   }
 });
 

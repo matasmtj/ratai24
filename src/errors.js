@@ -1,3 +1,5 @@
+import { MAX_CAR_IMAGE_SIZE_BYTES } from '../middlewares/upload.middleware.js';
+
 // src/errors.js
 export class HttpError extends Error {
   constructor(status, message, details) { super(message); this.status = status; this.details = details; }
@@ -81,8 +83,12 @@ export function errorHandler(err, req, res, next) {
         return res.status(400).json({ error: 'Failed to validate query' });
       case 'P2010':
         return res.status(500).json({ error: 'Raw query failed' });
-      case 'P2011':
-        return res.status(400).json({ error: 'Null constraint violation' });
+      case 'P2011': {
+        const field = err.meta?.constraint?.replace(/_key$/, '').replace(/_/g, ' ') || 'field';
+        return res.status(400).json({
+          error: `Required field missing (${field}). If VIN or plate were left blank, run database migrations on the server.`,
+        });
+      }
       case 'P2012':
         return res.status(400).json({ error: 'Missing required value' });
       case 'P2013':
@@ -144,6 +150,27 @@ export function errorHandler(err, req, res, next) {
         console.error('[Unknown Prisma Error]', err);
         return res.status(500).json({ error: 'A database error occurred' });
     }
+  }
+
+  // Handle Multer upload errors (file size, count, field name)
+  if (err.name === 'MulterError') {
+    switch (err.code) {
+      case 'LIMIT_FILE_SIZE':
+        return res.status(400).json({
+          error: `File too large. Maximum size is ${MAX_CAR_IMAGE_SIZE_BYTES / (1024 * 1024)}MB per image.`,
+        });
+      case 'LIMIT_FILE_COUNT':
+        return res.status(400).json({ error: 'Too many files. Maximum is 10 images per upload.' });
+      case 'LIMIT_UNEXPECTED_FILE':
+        return res.status(400).json({ error: 'Unexpected file field. Use field name "images".' });
+      default:
+        return res.status(400).json({ error: err.message || 'Upload failed' });
+    }
+  }
+
+  // Handle multer file-filter rejections (invalid MIME type)
+  if (err.message?.includes('Invalid file type')) {
+    return res.status(400).json({ error: err.message });
   }
 
   // Handle JWT errors
