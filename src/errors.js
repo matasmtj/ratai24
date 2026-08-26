@@ -1,4 +1,4 @@
-import { MAX_CAR_IMAGE_SIZE_BYTES } from '../middlewares/upload.middleware.js';
+import { config } from './config.js';
 
 // src/errors.js
 export class HttpError extends Error {
@@ -157,7 +157,7 @@ export function errorHandler(err, req, res, next) {
     switch (err.code) {
       case 'LIMIT_FILE_SIZE':
         return res.status(400).json({
-          error: `File too large. Maximum size is ${MAX_CAR_IMAGE_SIZE_BYTES / (1024 * 1024)}MB per image.`,
+          error: `File too large. Maximum size is ${config.maxCarImageSizeBytes / (1024 * 1024)}MB per image.`,
         });
       case 'LIMIT_FILE_COUNT':
         return res.status(400).json({ error: 'Too many files. Maximum is 10 images per upload.' });

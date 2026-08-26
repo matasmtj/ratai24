@@ -54,15 +54,12 @@ const fileFilter = (req, file, cb) => {
   }
 };
 
-// Max upload size for car/part gallery images (admin-only; Cloudinary resizes after upload).
-export const MAX_CAR_IMAGE_SIZE_BYTES = 10 * 1024 * 1024;
-
 // Create multer instance
 export const upload = multer({
   storage,
   fileFilter,
   limits: {
-    fileSize: MAX_CAR_IMAGE_SIZE_BYTES,
+    fileSize: config.maxCarImageSizeBytes,
   }
 });
 
@@ -71,7 +68,7 @@ export const uploadHero = multer({
   storage: heroStorage,
   fileFilter,
   limits: {
-    fileSize: 8 * 1024 * 1024, // 8MB max - hero images can be wider
+    fileSize: config.maxHeroImageSizeBytes,
   },
 });
 
