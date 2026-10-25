@@ -11,6 +11,7 @@ import {
   expect,
   beforeAll,
   beforeEach,
+  jest,
 } from '@jest/globals';
 import request from 'supertest';
 import jwt from 'jsonwebtoken';
@@ -19,6 +20,7 @@ import { setupTestApp } from './helpers/testApp.js';
 let harness;
 
 beforeAll(async () => {
+  process.env.RESEND_API_KEY = process.env.RESEND_API_KEY || 're_test_integration_key';
   harness = await setupTestApp();
 });
 
@@ -166,7 +168,10 @@ describe('POST /contracts', () => {
   });
 
   it('creates a DRAFT reservation with static pricing (201)', async () => {
-    harness.prisma.car.findUnique.mockResolvedValue(staticLeaseCar());
+    const car = staticLeaseCar();
+    const startDate = nextWeek(7);
+    const endDate = nextWeek(10);
+    harness.prisma.car.findUnique.mockResolvedValue(car);
     harness.prisma.contract.count.mockResolvedValue(0);
     harness.prisma.contract.findMany.mockResolvedValue([]);
     harness.prisma.contract.findFirst.mockResolvedValue(null);
@@ -177,7 +182,30 @@ describe('POST /contracts', () => {
       userId: 2,
       totalPrice: 120,
       state: 'DRAFT',
+      startDate,
+      endDate,
+      mileageStartKm: 10000,
+      fuelLevelStartPct: 80,
     });
+    harness.prisma.user.findUnique.mockResolvedValue({
+      id: 2,
+      email: 'u2@example.com',
+      firstName: 'Test',
+      lastName: 'User',
+      phoneNumber: '+37060000000',
+    });
+    harness.prisma.contact.findFirst.mockResolvedValue({
+      email: 'notify@skirvita.lt',
+      companyEmail: 'ops@skirvita.lt',
+    });
+
+    const fetchMock = jest.fn().mockResolvedValue({
+      ok: true,
+      text: async () => JSON.stringify({ id: 'resend_1' }),
+    });
+    const previousFetch = global.fetch;
+    global.fetch = fetchMock;
+
     const res = await request(harness.app)
       .post('/contracts')
       .set('Authorization', `Bearer ${userToken(2)}`)
@@ -185,6 +213,17 @@ describe('POST /contracts', () => {
     expect(res.status).toBe(201);
     expect(res.body.id).toBe(100);
     expect(res.body.state).toBe('DRAFT');
+
+    await new Promise((resolve) => setImmediate(resolve));
+
+    expect(fetchMock).toHaveBeenCalled();
+    const resendCall = fetchMock.mock.calls.find((c) => c[0] === 'https://api.resend.com/emails');
+    expect(resendCall).toBeDefined();
+    const payload = JSON.parse(resendCall[1].body);
+    expect(payload.to).toEqual(['notify@skirvita.lt', 'ops@skirvita.lt']);
+    expect(payload.subject).toMatch(/#100/);
+
+    global.fetch = previousFetch;
   });
 });
 

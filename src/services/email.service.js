@@ -1,4 +1,9 @@
+import { DateTime } from 'luxon';
 import { config } from '../config.js';
+import { calculateRequiredDeposit } from '../pricing/calculators/deposit.calculator.js';
+import { getReservationNotifyRecipients } from '../lib/reservationNotifyRecipients.js';
+
+const NOTIFY_TZ = 'Europe/Vilnius';
 
 function resolveEmailLanguage(language) {
   const code = typeof language === 'string' ? language.trim().toLowerCase().slice(0, 2) : '';
@@ -7,8 +12,85 @@ function resolveEmailLanguage(language) {
   return 'lt';
 }
 
-// Backwards-compatible alias used elsewhere in the file.
 const resolveResetEmailLanguage = resolveEmailLanguage;
+
+/** @param {string} value */
+export function escapeHtmlForEmail(value) {
+  if (value == null) return '';
+  return String(value)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
+
+function emailDomain(to) {
+  return to.includes('@') ? to.split('@')[1] : '(invalid)';
+}
+
+/**
+ * Sends email via Resend. Requires RESEND_API_KEY and verified EMAIL_FROM in production.
+ * @param {{ to: string | string[], subject: string, text: string, html: string, logLabel?: string }} args
+ */
+async function sendViaResend({ to, subject, text, html, logLabel = 'email' }) {
+  const { resendApiKey, emailFrom } = config;
+  const recipients = Array.isArray(to) ? to : [to];
+
+  if (!resendApiKey) {
+    console.warn(`[email] RESEND_API_KEY not set — ${logLabel} (dev), recipients:`, recipients.length);
+    console.warn(`[email] ${logLabel} subject:`, subject);
+    return;
+  }
+
+  if (!resendApiKey.startsWith('re_')) {
+    console.error(
+      '[email] RESEND_API_KEY should start with re_ — check for typos, extra quotes, or wrong variable on your host.'
+    );
+  }
+
+  console.log(`[email] Sending ${logLabel} via Resend`, {
+    from: emailFrom,
+    toDomains: recipients.map(emailDomain),
+    keyPreview: `${resendApiKey.slice(0, 6)}…`,
+  });
+
+  const res = await fetch('https://api.resend.com/emails', {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${resendApiKey}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      from: emailFrom,
+      to: recipients,
+      subject,
+      text,
+      html,
+    }),
+  });
+
+  const body = await res.text();
+  if (!res.ok) {
+    console.error(`[email] Resend ${logLabel} send failed:`, {
+      status: res.status,
+      body,
+      hint:
+        res.status === 403 || res.status === 422
+          ? 'Verify EMAIL_FROM domain in Resend, or use a verified domain. Test inbox: delivered@resend.dev'
+          : undefined,
+    });
+    throw new Error(`Failed to send ${logLabel}`);
+  }
+
+  try {
+    const data = JSON.parse(body);
+    if (data?.id) {
+      console.log(`[email] ${logLabel} queued, Resend id:`, data.id);
+    }
+  } catch {
+    // non-JSON success body — ignore
+  }
+}
 
 function buildPasswordResetContent(resetUrl, lang) {
   const hours = config.passwordResetExpiresHours;
@@ -48,71 +130,10 @@ function buildPasswordResetContent(resetUrl, lang) {
   };
 }
 
-/**
- * Sends password reset email via Resend (https://resend.com) when RESEND_API_KEY is set.
- * Otherwise logs the link (local development).
- *
- * @param {{ to: string, resetUrl: string, language?: string }} args
- */
 export async function sendPasswordResetEmail({ to, resetUrl, language }) {
-  const { resendApiKey, emailFrom } = config;
-
   const lang = resolveResetEmailLanguage(language);
   const { subject, text, html } = buildPasswordResetContent(resetUrl, lang);
-
-  if (!resendApiKey) {
-    console.warn('[email] RESEND_API_KEY not set — password reset link (dev):', resetUrl);
-    return;
-  }
-
-  if (!resendApiKey.startsWith('re_')) {
-    console.error(
-      '[email] RESEND_API_KEY should start with re_ — check for typos, extra quotes, or wrong variable on your host.'
-    );
-  }
-
-  console.log('[email] Sending password reset via Resend', {
-    from: emailFrom,
-    toDomain: to.includes('@') ? to.split('@')[1] : '(invalid)',
-    keyPreview: `${resendApiKey.slice(0, 6)}…`,
-  });
-
-  const res = await fetch('https://api.resend.com/emails', {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${resendApiKey}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      from: emailFrom,
-      to: [to],
-      subject,
-      text,
-      html,
-    }),
-  });
-
-  const body = await res.text();
-  if (!res.ok) {
-    console.error('[email] Resend send failed:', {
-      status: res.status,
-      body,
-      hint:
-        res.status === 403 || res.status === 422
-          ? 'Verify EMAIL_FROM domain in Resend, or use a verified domain. Test inbox: delivered@resend.dev'
-          : undefined,
-    });
-    throw new Error('Failed to send reset email');
-  }
-
-  try {
-    const data = JSON.parse(body);
-    if (data?.id) {
-      console.log('[email] Password reset email queued, Resend id:', data.id);
-    }
-  } catch {
-    // non-JSON success body — ignore
-  }
+  await sendViaResend({ to, subject, text, html, logLabel: 'password reset' });
 }
 
 function buildVerificationContent(verifyUrl, lang) {
@@ -156,69 +177,131 @@ function buildVerificationContent(verifyUrl, lang) {
   };
 }
 
-/**
- * Sends an email verification message via Resend when RESEND_API_KEY is set.
- * Otherwise logs the link (local development).
- *
- * @param {{ to: string, verifyUrl: string, language?: string }} args
- */
 export async function sendVerificationEmail({ to, verifyUrl, language }) {
-  const { resendApiKey, emailFrom } = config;
-
   const lang = resolveEmailLanguage(language);
   const { subject, text, html } = buildVerificationContent(verifyUrl, lang);
+  await sendViaResend({ to, subject, text, html, logLabel: 'verification' });
+}
 
-  if (!resendApiKey) {
-    console.warn('[email] RESEND_API_KEY not set — verification link (dev):', verifyUrl);
+function formatReservationInstant(date) {
+  return DateTime.fromJSDate(new Date(date)).setZone(NOTIFY_TZ).toFormat('yyyy-MM-dd HH:mm');
+}
+
+function displayUserName(user) {
+  if (!user) return '—';
+  const parts = [user.firstName, user.lastName].filter(Boolean);
+  return parts.length ? parts.join(' ') : '—';
+}
+
+/**
+ * @param {{ contract: object, car: object, user: object | null, requiredDeposit: number }} payload
+ */
+export function buildNewReservationNotificationContent({ contract, car, user, requiredDeposit }) {
+  const adminUrl = `${config.frontendUrl}/admin/contracts`;
+  const start = formatReservationInstant(contract.startDate);
+  const end = formatReservationInstant(contract.endDate);
+  const userName = displayUserName(user);
+  const userEmail = user?.email ?? '—';
+  const userPhone = user?.phoneNumber?.trim() ? user.phoneNumber.trim() : '—';
+  const plate = car.numberPlate?.trim() || '—';
+  const vin = car.vin?.trim() || '—';
+  const notes = contract.notes?.trim() ? contract.notes.trim() : null;
+  const totalPrice = Number(contract.totalPrice);
+  const priceStr = Number.isFinite(totalPrice) ? `€${totalPrice.toFixed(2)}` : '—';
+
+  const subject = `Nauja rezervacija #${contract.id} – Skirvita`;
+
+  const textLines = [
+    'Nauja rezervacija svetainėje Skirvita',
+    '',
+    `Rezervacijos ID: ${contract.id}`,
+    `Būsena: ${contract.state}`,
+    `Pradžia: ${start} (${NOTIFY_TZ})`,
+    `Pabaiga: ${end} (${NOTIFY_TZ})`,
+    '',
+    'Klientas:',
+    `  Vardas: ${userName}`,
+    `  El. paštas: ${userEmail}`,
+    `  Telefonas: ${userPhone}`,
+    '',
+    'Automobilis:',
+    `  ID: ${car.id}`,
+    `  ${car.make} ${car.model} (${car.year})`,
+    `  Valstybinis nr.: ${plate}`,
+    `  VIN: ${vin}`,
+    '',
+    `Suma: ${priceStr}`,
+    `Depozitas: €${requiredDeposit}`,
+  ];
+  if (notes) {
+    textLines.push('', 'Pastabos:', notes);
+  }
+  textLines.push('', `Peržiūrėti administravime: ${adminUrl}`);
+
+  const html = `
+    <h2>Nauja rezervacija</h2>
+    <p><strong>Rezervacijos ID:</strong> ${contract.id}</p>
+    <p><strong>Būsena:</strong> ${escapeHtmlForEmail(contract.state)}</p>
+    <p><strong>Pradžia:</strong> ${escapeHtmlForEmail(start)} (${NOTIFY_TZ})<br/>
+    <strong>Pabaiga:</strong> ${escapeHtmlForEmail(end)} (${NOTIFY_TZ})</p>
+    <h3>Klientas</h3>
+    <ul>
+      <li><strong>Vardas:</strong> ${escapeHtmlForEmail(userName)}</li>
+      <li><strong>El. paštas:</strong> ${escapeHtmlForEmail(userEmail)}</li>
+      <li><strong>Telefonas:</strong> ${escapeHtmlForEmail(userPhone)}</li>
+    </ul>
+    <h3>Automobilis</h3>
+    <ul>
+      <li><strong>ID:</strong> ${car.id}</li>
+      <li><strong>Modelis:</strong> ${escapeHtmlForEmail(car.make)} ${escapeHtmlForEmail(car.model)} (${car.year})</li>
+      <li><strong>Valstybinis nr.:</strong> ${escapeHtmlForEmail(plate)}</li>
+      <li><strong>VIN:</strong> ${escapeHtmlForEmail(vin)}</li>
+    </ul>
+    <p><strong>Suma:</strong> ${escapeHtmlForEmail(priceStr)}<br/>
+    <strong>Depozitas:</strong> €${requiredDeposit}</p>
+    ${notes ? `<p><strong>Pastabos:</strong><br/>${escapeHtmlForEmail(notes).replace(/\n/g, '<br/>')}</p>` : ''}
+    <p><a href="${escapeHtmlForEmail(adminUrl)}">Atidaryti rezervacijas administravime</a></p>
+  `.trim();
+
+  return { subject, text: textLines.join('\n'), html };
+}
+
+/**
+ * Notify business inboxes when a user creates a DRAFT reservation.
+ * Requires RESEND_API_KEY + EMAIL_FROM; recipients from Contact.email and companyEmail.
+ * Controlled by RESERVATION_NOTIFY_ENABLED (default on).
+ *
+ * @param {{ contract: object, car: object, user: object | null }} args
+ */
+export async function sendNewReservationNotification({ contract, car, user }) {
+  if (!config.reservationNotifyEnabled) {
     return;
   }
 
-  if (!resendApiKey.startsWith('re_')) {
-    console.error(
-      '[email] RESEND_API_KEY should start with re_ — check for typos, extra quotes, or wrong variable on your host.'
-    );
+  const recipients = await getReservationNotifyRecipients();
+  if (!recipients.length) {
+    console.warn('[email] No valid contact emails for reservation notification — skipping');
+    return;
   }
 
-  console.log('[email] Sending verification email via Resend', {
-    from: emailFrom,
-    toDomain: to.includes('@') ? to.split('@')[1] : '(invalid)',
-    keyPreview: `${resendApiKey.slice(0, 6)}…`,
+  const requiredDeposit = calculateRequiredDeposit(contract.startDate, contract.endDate);
+  const { subject, text, html } = buildNewReservationNotificationContent({
+    contract,
+    car,
+    user,
+    requiredDeposit,
   });
 
-  const res = await fetch('https://api.resend.com/emails', {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${resendApiKey}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      from: emailFrom,
-      to: [to],
-      subject,
-      text,
-      html,
-    }),
+  await sendViaResend({
+    to: recipients,
+    subject,
+    text,
+    html,
+    logLabel: `reservation #${contract.id} notification`,
   });
 
-  const body = await res.text();
-  if (!res.ok) {
-    console.error('[email] Resend verification send failed:', {
-      status: res.status,
-      body,
-      hint:
-        res.status === 403 || res.status === 422
-          ? 'Verify EMAIL_FROM domain in Resend, or use a verified domain. Test inbox: delivered@resend.dev'
-          : undefined,
-    });
-    throw new Error('Failed to send verification email');
-  }
-
-  try {
-    const data = JSON.parse(body);
-    if (data?.id) {
-      console.log('[email] Verification email queued, Resend id:', data.id);
-    }
-  } catch {
-    // non-JSON success body — ignore
-  }
+  console.log('[email] Reservation notification sent', {
+    contractId: contract.id,
+    recipientDomains: recipients.map(emailDomain),
+  });
 }

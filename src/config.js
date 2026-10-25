@@ -29,6 +29,8 @@ export const config = {
   emailFrom:
     cleanEnvString(process.env.EMAIL_FROM) || 'Ratai24 <onboarding@resend.dev>',
   resendApiKey: cleanEnvString(process.env.RESEND_API_KEY),
+  /** When false, skip admin emails for new user reservations (RESERVATION_NOTIFY_ENABLED=false). */
+  reservationNotifyEnabled: process.env.RESERVATION_NOTIFY_ENABLED !== 'false',
   /** Google OAuth client ID (same value as VITE_GOOGLE_CLIENT_ID on the frontend). */
   googleClientId: cleanEnvString(process.env.GOOGLE_CLIENT_ID),
   cloudinary: {

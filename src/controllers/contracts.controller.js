@@ -11,6 +11,7 @@ import {
   attachLockMeta,
   contractWithLockInclude,
 } from '../lib/contractEditLock.js';
+import { sendNewReservationNotification } from '../services/email.service.js';
 
 /**
  * Derive and attach the `requiredDeposit` field (in euro) onto a contract
@@ -269,6 +270,15 @@ export const createContract = async (req, res, next) => {
         ...pricingPayload,
       }
     });
+
+    void prisma.user
+      .findUnique({ where: { id: userId } })
+      .then((user) =>
+        sendNewReservationNotification({ contract: created, car, user })
+      )
+      .catch((err) => {
+        console.error('[email] Reservation notification failed:', err?.message || err);
+      });
 
     res.status(201).json(attachDeposit(created));
   } catch (e) {
